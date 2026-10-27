@@ -1,6 +1,6 @@
 {
   "name": "jytodo",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
   "engines": {
@@ -19,7 +19,8 @@
     "setup:electron": "node --use-env-proxy node_modules/electron/install.js",
     "package:installer:win": "npm run build && electron-builder --win nsis --x64",
     "test:rls": "node test/rls.integration.js",
-    "test:accounts:ui": "node test/accounts.ui.js"
+    "test:accounts:ui": "node test/accounts.ui.js",
+    "test:cloud": "node --use-env-proxy test/cloud.live.js"
   },
   "dependencies": {
     "express": "^5.1.0",

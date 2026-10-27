@@ -6,15 +6,21 @@ Windows PC에서 이메일·비밀번호로 로그인하고, 같은 계정의 �
 
 [GitHub 최신 릴리스](https://github.com/heetae1120/JYTODO/releases/latest)의 Assets에서 받으세요.
 
-- `JYTODO-Portable-0.2.0-x64.exe`: 설치 없이 실행하는 Windows 64비트 단일 파일
-- `JYTODO-0.2.0-Windows-x64.zip`: 전체 압축을 푼 뒤 `JYTODO.exe` 실행. EXE만 따로 옮기면 실행되지 않습니다.
+- `JYTODO-Portable-0.2.1-x64.exe`: 설치 없이 실행하는 Windows 64비트 단일 파일
+- `JYTODO-0.2.1-Windows-x64.zip`: 전체 압축을 푼 뒤 `JYTODO.exe` 실행. EXE만 따로 옮기면 실행되지 않습니다.
 - `SHA256SUMS`: 파일 무결성 확인용
 
 업데이트 전에는 기존 프로그램을 **트레이에서 완전히 종료**하세요. 현재 실행 파일은 코드 서명 전 개발 버전입니다. 자동 실행을 설정했다면 실행 파일을 같은 위치에 유지하세요.
 
-## 처음 한 번: Supabase 동기화 공간 만들기
+## 기본 서버로 바로 사용하기
 
-실제 Supabase 프로젝트나 사용자 계정은 실행 파일에 포함되어 있지 않습니다. 프로젝트 소유자가 본인 Supabase 계정에서 다음을 준비합니다. [자세한 새 프로젝트 설정 안내](supabase/SETUP.ko.md)를 참고하세요.
+0.2.1부터 JYTODO 서버의 공개 연결 정보가 프로그램에 포함됩니다. 기존 프로그램을 트레이에서 완전히 종료한 뒤 새 실행 파일을 열고 **회원가입 → 이메일 인증 → 로그인**하세요. 다른 PC에서도 같은 실행 파일과 계정을 사용하면 됩니다. 개인 비밀번호와 관리 토큰은 배포하지 않습니다. 기본 메일 서비스의 정책상 초기 가입은 Supabase 프로젝트 관리 계정의 이메일을 사용하는 것이 좋습니다.
+
+기본 프로젝트는 비어 있던 기존 Supabase 프로젝트를 JYTODO 전용으로 설정했으며 도쿄 리전을 유지합니다. 기존 요금제와 컴퓨팅 사양은 변경하지 않았습니다. 실제 DB에서 계정 간 접근 차단과 익명 차단을 검사했고 테스트 데이터는 롤백했습니다. 개인 계정의 가입·메일 수신은 사용자 본인이 진행합니다.
+
+## 자체 서버를 사용하는 경우: Supabase 동기화 공간 만들기
+
+기본 서버 대신 본인 소유의 서버를 운영할 때만 아래 절차가 필요합니다. 프로젝트 소유자가 본인 Supabase 계정에서 다음을 준비합니다. [자세한 새 프로젝트 설정 안내](supabase/SETUP.ko.md)를 참고하세요.
 
 1. [Supabase 새 프로젝트](https://supabase.com/dashboard/new)에서 무료 프로젝트를 만듭니다. DB 비밀번호는 Supabase 화면에서 직접 설정하며 프로그램에 입력하지 않습니다.
 2. **SQL Editor**에서 [supabase/schema.sql](supabase/schema.sql) 전체를 실행합니다. 계정별 접근 정책(RLS)과 충돌 방지 함수를 함께 만듭니다. RLS를 끄지 마세요.
@@ -116,6 +122,7 @@ XDG_CACHE_HOME=/workspace/.cache ELECTRON_CACHE=/workspace/.cache/electron ELECT
 ```sh
 npm test
 npm run test:rls
+npm run test:cloud
 npm run build
 npm run test:accounts:ui
 npm run test:desktop
@@ -127,7 +134,7 @@ npm run test:ui
 - `test:accounts:ui`: 격리된 두 PC 서버와 가짜 Supabase로 로그인·계정 전환·동기화·충돌 해결 화면 검증
 - `test:desktop`: 임시 데이터 폴더에서 Electron 실행, Node 접근 차단, 트레이·예약 팝업·다시 알림·재시작 보존·프로젝트 설정·로그인 잠금 검증
 
-브라우저 검증은 `CHROMIUM_PATH` 또는 시스템 Chromium을 사용하고, 없으면 `npx playwright install chromium`으로 설치한 브라우저를 사용합니다. Linux 네이티브 검증은 `DISPLAY=:99 npm run test:desktop`으로 실행합니다. 결과 화면은 `test-results/`에 저장합니다. 실제 Supabase 관리 프로젝트 생성·사용자 이메일 수신·호스팅된 Auth/DB 연결은 소유자 설정 후 별도 확인해야 합니다.
+브라우저 검증은 `CHROMIUM_PATH` 또는 시스템 Chromium을 사용하고, 없으면 `npx playwright install chromium`으로 설치한 브라우저를 사용합니다. Linux 네이티브 검증은 `DISPLAY=:99 npm run test:desktop`으로 실행합니다. 결과 화면은 `test-results/`에 저장합니다. 기본 Supabase 프로젝트의 스키마·Auth 리디렉션은 적용되어 있으며 호스팅 DB의 RLS도 검증했습니다. `test:cloud`는 실제 Auth 응답과 익명 REST 접근 차단을 읽기 요청으로 확인합니다. 사용자 본인의 가입·메일 수신과 실제 두 PC의 개인 내역 확인은 첫 사용 때 진행합니다.
 
 `v*` 태그를 올리면 GitHub Actions가 실제 DB 정책과 계정 화면, Windows 네이티브 앱을 검사한 뒤 릴리스에 파일을 게시합니다. 별도 개인 GitHub 토큰 없이 작업의 기본 토큰을 사용합니다.
 

@@ -31,6 +31,8 @@ jobs:
         run: npm test
       - name: Test real PostgreSQL row-level security
         run: npm run test:rls
+      - name: Verify configured hosted backend
+        run: npm run test:cloud
       - name: Install test browser
         run: npx playwright install --with-deps chromium
       - name: Build interface
@@ -94,7 +96,7 @@ jobs:
           - JYTODO-*-Windows-x64.zip: 전체 압축을 풀고 JYTODO.exe 실행
           - SHA256SUMS: 다운로드 파일 무결성 확인용
 
-          프로그램을 완전히 종료한 뒤 다시 실행할 때마다 이메일·비밀번호로 로그인합니다. 같은 Supabase 프로젝트와 계정을 사용하면 다른 PC에서도 할 일을 불러옵니다. 첫 사용에는 Supabase 프로젝트를 생성하고 README의 SQL 설정과 공개 연결 정보를 등록해야 합니다. 실제 프로젝트와 계정은 배포 파일에 포함되어 있지 않습니다.
+          JYTODO 동기화 서버 연결 정보가 포함되어 있습니다. 프로젝트 설정 없이 회원가입·이메일 인증 후 로그인하세요. 프로그램을 완전히 종료한 뒤 다시 실행할 때마다 이메일·비밀번호로 로그인합니다. 다른 PC에서도 같은 계정의 할 일을 불러옵니다. 계정과 비밀번호, 관리 토큰은 배포 파일에 포함되지 않습니다.
 
           오프라인 변경은 PC에 보관했다가 다시 연결되면 보내고, 두 PC에서 수정한 항목의 충돌은 직접 선택합니다. 기존 PC 내역은 계정 관리에서 명시적으로 가져올 수 있습니다. 업데이트 전에는 기존 프로그램을 트레이에서 완전히 종료해 주세요.
 
