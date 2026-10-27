@@ -9,14 +9,20 @@ export function validateTask(input) {
   const title = typeof input.title === 'string' ? input.title.trim() : '';
   if (!title || title.length > 200) throw new ValidationError('제목은 1~200자로 입력해 주세요.');
   if (typeof input.dueAt !== 'string' || !Number.isFinite(Date.parse(input.dueAt))) throw new ValidationError('날짜와 시간을 확인해 주세요.');
-  if (!['work', 'personal', 'study'].includes(input.category)) throw new ValidationError('분류를 확인해 주세요.');
-  if (!['normal', 'high'].includes(input.priority)) throw new ValidationError('중요도를 확인해 주세요.');
-  if (![null, 0, 5, 10, 30, 60].includes(input.reminderMinutes)) throw new ValidationError('알림 시간을 확인해 주세요.');
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(input.dueAt);
+  if (dateOnly && new Date(input.dueAt).toISOString().slice(0,10) !== input.dueAt) throw new ValidationError('올바른 날짜를 입력해 주세요.');
+  // Retain old clients' fields for compatibility; new clients use color instead.
+  if (input.category !== undefined && !['work', 'personal', 'study'].includes(input.category)) throw new ValidationError('분류를 확인해 주세요.');
+  if (input.priority !== undefined && !['normal', 'high'].includes(input.priority)) throw new ValidationError('중요도를 확인해 주세요.');
+  if (input.color !== undefined && !/^#[a-fA-F0-9]{6}$/.test(input.color)) throw new ValidationError('RGB 색상을 확인해 주세요.');
+  if (input.reminderMinutes !== undefined && ![null, 0, 5, 10, 30, 60].includes(input.reminderMinutes)) throw new ValidationError('알림 시간을 확인해 주세요.');
+  if (input.reminderAt !== undefined && input.reminderAt !== null && (typeof input.reminderAt !== 'string' || !Number.isFinite(Date.parse(input.reminderAt)) || !input.reminderAt.includes('T'))) throw new ValidationError('알림 날짜와 시간을 확인해 주세요.');
+  const reminderAt = dateOnly ? null : input.reminderAt !== undefined ? input.reminderAt && new Date(input.reminderAt).toISOString() : input.reminderMinutes != null ? new Date(Date.parse(input.dueAt) - input.reminderMinutes * 60000).toISOString() : null;
   if (typeof input.notes !== 'string' || input.notes.length > 5000) throw new ValidationError('메모는 5,000자 이내로 입력해 주세요.');
   if (typeof input.slack !== 'boolean' || typeof input.calendar !== 'boolean') throw new ValidationError('연동 설정을 확인해 주세요.');
   const timezone = input.timezone || 'Asia/Seoul';
   try { new Intl.DateTimeFormat('ko', { timeZone: timezone }).format(); } catch { throw new ValidationError('시간대를 확인해 주세요.'); }
-  return { title, dueAt: new Date(input.dueAt).toISOString(), category: input.category, priority: input.priority, notes: input.notes.trim(), reminderMinutes: input.reminderMinutes, slack: input.slack, calendar: input.calendar, timezone };
+  return { title, dueAt: dateOnly ? input.dueAt : new Date(input.dueAt).toISOString(), color: (input.color || (input.priority === 'high' ? '#ed829b' : '#b8a4d8')).toLowerCase(), category: input.category || 'work', priority: input.priority || 'normal', notes: input.notes.trim(), reminderAt, reminderMinutes: reminderAt ? input.reminderMinutes ?? null : null, slack: Boolean(reminderAt && input.slack), calendar: input.calendar, timezone };
 }
 
 export class Store {
@@ -50,18 +56,19 @@ export class Store {
   }
   create(input) {
     const data = validateTask(input);
-    return this.save({ ...data, id: randomUUID(), completed: false, createdAt: new Date().toISOString(), reminderAt: data.reminderMinutes === null ? null : new Date(Date.parse(data.dueAt) - data.reminderMinutes * 60000).toISOString(), notifiedAt: null, slackSentAt: null, slackError: null, googleEventId: null, calendarError: null });
+    return this.save({ ...data, id: randomUUID(), completed: false, createdAt: new Date().toISOString(), notifiedAt: null, slackSentAt: null, slackError: null, googleEventId: null, calendarError: null });
   }
   update(id, input) {
     const old = this.get(id);
     if (!old) return null;
     const data = validateTask(input);
-    const reset = old.dueAt !== data.dueAt || old.reminderMinutes !== data.reminderMinutes;
+    const reset = old.dueAt !== data.dueAt || old.reminderMinutes !== data.reminderMinutes || (Object.hasOwn(input,'reminderAt') && old.reminderAt !== data.reminderAt);
     return this.save({ ...old, ...data,
-      ...(reset ? { reminderAt: data.reminderMinutes === null ? null : new Date(Date.parse(data.dueAt) - data.reminderMinutes * 60000).toISOString(), notifiedAt: null, slackSentAt: null, slackError: null } : {}),
+      reminderAt: reset ? data.reminderAt : old.reminderAt,
+      ...(reset ? { notifiedAt: null, slackSentAt: null, slackError: null } : {}),
       ...(!old.slack && data.slack ? { slackSentAt: null, slackError: null } : {}) });
   }
-  due(now = new Date().toISOString()) { return this.all().filter(t => !t.completed && t.reminderAt && t.reminderAt <= now); }
+  due(now = new Date().toISOString()) { return this.all().filter(t => !t.completed && t.dueAt.includes('T') && t.reminderAt && t.reminderAt <= now); }
   remove(id) {
     if(this.owner==='local')this.db.prepare('DELETE FROM tasks WHERE id=?').run(id);
     else this.db.prepare('UPDATE cloud_tasks SET deleted=1,dirty=1,revision=revision+1 WHERE owner=? AND id=?').run(this.owner,id);
@@ -113,5 +120,5 @@ export class Store {
 }
 
 export function cloudBody(task) {
-  return Object.fromEntries(['id','title','notes','dueAt','category','priority','reminderMinutes','slack','calendar','timezone','completed','createdAt','reminderAt','notifiedAt'].map(key=>[key,task[key]??null]));
+  return Object.fromEntries(['id','title','notes','dueAt','color','category','priority','reminderMinutes','slack','calendar','timezone','completed','createdAt','reminderAt','notifiedAt'].map(key=>[key,key==='color' ? task.color || (task.priority==='high'?'#ed829b':'#b8a4d8') : task[key]??null]));
 }

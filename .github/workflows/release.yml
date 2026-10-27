@@ -39,6 +39,8 @@ jobs:
         run: npm run build
       - name: Test two-computer account workflow
         run: npm run test:accounts:ui
+      - name: Test colors, optional times, reminders and scrolling
+        run: npm run test:ui
   windows:
     needs: database
     runs-on: windows-latest
@@ -90,21 +92,17 @@ jobs:
         shell: pwsh
         run: |
           @'
-          Windows 64비트용 JYTODO 계정 동기화 버전입니다.
+          파스텔 핑크 테마와 새 캐릭터 아이콘을 적용한 Windows 64비트용 JYTODO입니다.
 
-          - JYTODO-Portable-*.exe: 설치 없이 실행하는 단일 파일
-          - JYTODO-*-Windows-x64.zip: 전체 압축을 풀고 JYTODO.exe 실행
-          - SHA256SUMS: 다운로드 파일 무결성 확인용
+          - 분류를 제거하고 마우스로 고르는 RGB 컬러칩으로 중요도를 표시합니다.
+          - 시간 지정 안 함을 지원합니다. 날짜만 있는 할 일에는 알림이 없습니다.
+          - 팝업 · 알람은 기본 OFF이며, ON일 때만 원하는 알림 날짜와 시간을 설정합니다.
+          - 오늘의 한 걸음·함께 쓰면 더 편해요·다음 일정을 제거했습니다.
+          - 페이지와 설정 창이 화면보다 길면 스크롤할 수 있습니다.
 
-          JYTODO 동기화 서버 연결 정보가 포함되어 있습니다. 프로젝트 설정 없이 회원가입·이메일 인증 후 로그인하세요. 프로그램을 완전히 종료한 뒤 다시 실행할 때마다 이메일·비밀번호로 로그인합니다. 다른 PC에서도 같은 계정의 할 일을 불러옵니다. 계정과 비밀번호, 관리 토큰은 배포 파일에 포함되지 않습니다.
+          JYTODO-Portable-*.exe는 설치 없이 실행하는 단일 파일입니다. ZIP은 전체 압축을 풀고 JYTODO.exe를 실행하세요. 업데이트 전에 기존 프로그램을 트레이에서 완전히 종료하세요. 계정·할 일·PC 연동 설정은 보존됩니다. 모든 PC를 같은 버전으로 업데이트하면 새 컬러와 시간 표시를 동일하게 볼 수 있습니다.
 
-          이메일 인증이 완료되지 않으면 원인을 안내하고 인증 메일 다시 받기 버튼을 제공합니다. 받은편지함과 스팸함의 확인 링크를 누른 뒤 로그인하세요.
-
-          오프라인 변경은 PC에 보관했다가 다시 연결되면 보내고, 두 PC에서 수정한 항목의 충돌은 직접 선택합니다. 기존 PC 내역은 계정 관리에서 명시적으로 가져올 수 있습니다. 업데이트 전에는 기존 프로그램을 트레이에서 완전히 종료해 주세요.
-
-          창의 X 버튼은 트레이로 숨깁니다. 로그인 상태에서 예약 시간이 되면 프로그램 창을 다시 띄웁니다. 로그아웃·완전 종료·PC 종료 중에는 알림이 동작하지 않습니다.
-
-          코드 서명 전 버전입니다. Slack·Google 캘린더는 사용자 계정 설정이 필요합니다. Windows OS 토스트·자동 실행 설정은 PC별 확인이 필요합니다. 자세한 사용법은 저장소 README를 확인하세요.
+          기본 동기화 서버가 포함되어 있습니다. 이메일 인증 후 같은 계정으로 로그인하세요. 예약 알림은 로그인 상태에서 프로그램이 실행 중일 때 동작합니다. 창의 X는 트레이로 숨깁니다. Windows 알림 소리는 OS 알림·볼륨·방해 금지 설정에 영향을 받습니다. Slack·Google은 PC별 연결이 필요합니다. 코드 서명 전 개발 버전입니다.
           '@ | Set-Content release/notes.md -Encoding utf8
           gh release view "$env:GITHUB_REF_NAME" --json tagName --jq .tagName
           if ($LASTEXITCODE -ne 0) {

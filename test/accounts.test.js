@@ -163,3 +163,17 @@ test('API requires cloud login, never exposes auth tokens and locks data after l
     await call('/auth/login',login('bob'));assert.equal((await call('/tasks')).body.length,0);
   }finally{await new Promise(resolve=>server.close(resolve));root.close();}
 });
+
+test('date-only entries, custom RGB and explicit alarm times sync between computers without old classification input', async()=>{
+  const service=fakeSupabase(),first=new Store(':memory:'),second=new Store(':memory:');
+  try{
+    const a=new Accounts(first,project,service.fetch),b=new Accounts(second,project,service.fetch);
+    await a.signIn({email:'alice@example.test',password:'test-password'});
+    const item=a.store.create({title:'날짜만 있는 할 일',notes:'',dueAt:'2030-06-10',color:'#12abef',reminderAt:null,slack:false,calendar:false,timezone:'Asia/Seoul'});
+    await a.sync(true);await b.signIn({email:'alice@example.test',password:'test-password'});
+    assert.equal(b.store.get(item.id).dueAt,'2030-06-10');assert.equal(b.store.get(item.id).color,'#12abef');assert.equal(b.store.get(item.id).reminderAt,null);
+    b.store.update(item.id,{title:'시간과 알림 추가',notes:'',dueAt:'2030-06-10T05:00:00Z',color:'#cb45ad',reminderAt:'2030-06-10T04:45:00Z',slack:false,calendar:false,timezone:'Asia/Seoul'});
+    await b.sync(true);await a.sync(true);
+    assert.equal(a.store.get(item.id).color,'#cb45ad');assert.equal(a.store.get(item.id).reminderAt,'2030-06-10T04:45:00.000Z');
+  }finally{first.close();second.close();}
+});

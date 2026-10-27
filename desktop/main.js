@@ -86,8 +86,8 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
     });
     session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => callback(false));
     window = new BrowserWindow({
-      title: 'JYTODO', width: 1380, height: 940, minWidth: 980, minHeight: 700,
-      backgroundColor: '#f6f7f9', show: false, icon: join(root, 'desktop/icon.png'),
+      title: 'JYTODO', width: 1380, height: 940, minWidth: 760, minHeight: 480,
+      backgroundColor: '#fff6f8', show: false, icon: join(root, 'desktop/icon.png'),
       webPreferences: { preload: join(root, 'desktop/preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: false, devTools: !app.isPackaged },
     });
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));

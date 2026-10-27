@@ -33,6 +33,9 @@ try{
   page.on('pageerror',e=>errors.push(e.message));other.on('pageerror',e=>errors.push(e.message));
   await page.goto(a.url);await page.getByRole('heading',{name:'다시 만나 반가워요'}).waitFor();
   assert.equal((await fetch(a.url+'/api/tasks')).status,401);
+  await page.setViewportSize({width:1100,height:400});
+  assert.ok(await page.evaluate(()=>document.documentElement.scrollHeight>innerHeight),'Login page must scroll in a short window');
+  await page.setViewportSize({width:1440,height:1000});
   await mkdir('test-results',{recursive:true});await page.screenshot({path:'test-results/login.png',fullPage:true});
   await page.getByRole('button',{name:'회원가입',exact:true}).click();await page.getByLabel('아이디 (이메일)',{exact:true}).fill('alice@example.test');await page.getByLabel('비밀번호',{exact:true}).fill('test-password');await page.getByRole('button',{name:'회원가입',exact:true}).click();await page.getByRole('status').waitFor();
   await page.getByLabel('비밀번호',{exact:true}).fill('wrong-password');await page.getByRole('button',{name:'로그인',exact:true}).click();await page.getByRole('alert').waitFor();
@@ -47,7 +50,11 @@ try{
   await login(page,a,'alice');const task=await mutate(page,'두 PC에서 불러온 할 일');await page.getByLabel('지금 동기화',{exact:true}).click();
   await login(other,b,'alice');await other.getByRole('button',{name:'두 PC에서 불러온 할 일',exact:true}).waitFor();
   await mutate(other,'다른 PC에서 수정한 내역',task.id);await other.getByLabel('지금 동기화',{exact:true}).click();await page.getByLabel('지금 동기화',{exact:true}).click();await page.getByRole('button',{name:'다른 PC에서 수정한 내역',exact:true}).waitFor({timeout:10000});
-  await page.getByRole('button',{name:'계정 관리',exact:true}).click();await page.getByRole('button',{name:'가져오기 확인',exact:true}).click();await page.getByRole('button',{name:'이 계정으로 가져오기',exact:true}).click();await page.getByText('1개 항목을 가져왔습니다.',{exact:true}).waitFor();await page.getByRole('button',{name:'계정 창 닫기',exact:true}).click();
+  await page.getByRole('button',{name:'계정 관리',exact:true}).click();
+  await page.setViewportSize({width:1100,height:400});
+  assert.ok(await page.getByRole('dialog').evaluate(el=>el.scrollHeight>el.clientHeight),'Account dialog must scroll in a short window');
+  await page.setViewportSize({width:1440,height:1000});
+  await page.getByRole('button',{name:'가져오기 확인',exact:true}).click();await page.getByRole('button',{name:'이 계정으로 가져오기',exact:true}).click();await page.getByText('1개 항목을 가져왔습니다.',{exact:true}).waitFor();await page.getByRole('button',{name:'계정 창 닫기',exact:true}).click();
   await page.getByRole('button',{name:'기존 PC의 기록',exact:true}).waitFor({timeout:10000});
   await logout(page);assert.equal(await page.getByRole('button',{name:'다른 PC에서 수정한 내역',exact:true}).count(),0);
   await login(page,a,'bob');await page.getByRole('heading',{name:'아직 적어둔 할 일이 없어요'}).waitFor();await mutate(page,'Bob의 비공개 일정');await page.getByLabel('지금 동기화',{exact:true}).click();await logout(page);await login(page,a,'alice');await page.getByRole('button',{name:'다른 PC에서 수정한 내역',exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'Bob의 비공개 일정',exact:true}).count(),0);

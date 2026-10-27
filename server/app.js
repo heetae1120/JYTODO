@@ -135,6 +135,7 @@ function createCoreApp(store, config = process.env, request = fetch) {
       } else if (req.params.action === 'ack') {
         if (req.body.reminderAt === task.reminderAt) task = store.save({ ...task, notifiedAt: new Date().toISOString() });
       } else if (req.params.action === 'snooze') {
+        if (!task.dueAt.includes('T') || !task.reminderAt || task.completed) throw new ValidationError('알림이 켜진 할 일만 다시 알림을 설정할 수 있습니다.');
         task = store.save({ ...task, reminderAt: new Date(Date.now() + 600000).toISOString(), notifiedAt: null, slackSentAt: null, slackError: null });
       } else if (req.params.action === 'sync') task = await integrations.syncCalendar(task);
       else return res.status(404).json({ error: '지원하지 않는 작업입니다.' });

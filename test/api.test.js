@@ -135,3 +135,32 @@ test('failed Google deletion preserves local task and reports failure', () => fi
   const item=store.create(task({calendar:true}));store.save({...item,googleEventId:'saved-event'});
   const result=await call(`/tasks/${item.id}`,'DELETE');assert.equal(result.status,502);assert.ok(store.get(item.id));
 }, {}, async()=>new Response('{}',{status:500})));
+
+test('date-only tasks keep their calendar date, RGB color and cannot schedule or snooze alarms', () => fixture(async({call})=>{
+  const created=await call('/tasks','POST',task({dueAt:'2020-01-01',color:'#35a9eF',reminderAt:'2020-01-01T03:00:00Z',slack:true}));
+  assert.equal(created.status,201);assert.equal(created.body.dueAt,'2020-01-01');assert.equal(created.body.color,'#35a9ef');assert.equal(created.body.reminderAt,null);assert.equal(created.body.slack,false);
+  assert.deepEqual((await call('/alarms')).body,[]);
+  assert.equal((await call(`/tasks/${created.body.id}/snooze`,'POST',{})).status,400);
+  for(const patch of [{dueAt:'2030-02-30'},{color:'red'},{reminderAt:'bad'}])assert.equal((await call('/tasks','POST',task(patch))).status,400);
+}));
+
+test('custom alarm times are stored and OFF cancels pending popups and Slack',()=>fixture(async({call})=>{
+  const dueAt='2030-06-10T05:30:00Z',reminderAt='2020-01-01T00:00:00Z';
+  const created=(await call('/tasks','POST',task({dueAt,reminderAt,reminderMinutes:null,slack:true}))).body;
+  assert.equal(created.reminderAt,'2020-01-01T00:00:00.000Z');assert.equal((await call('/alarms')).body.length,1);
+  const off=await call(`/tasks/${created.id}`,'PUT',task({dueAt,reminderAt:null,reminderMinutes:null,slack:true}));
+  assert.equal(off.body.reminderAt,null);assert.equal(off.body.slack,false);assert.deepEqual((await call('/alarms')).body,[]);
+  assert.equal((await call(`/tasks/${created.id}/snooze`,'POST',{})).status,400);
+}));
+
+test('all-day Google events and ICS preserve dates across timezone boundaries without reminders', async()=>{
+  const store=new Store(':memory:');
+  try{
+    const item=store.create(task({dueAt:'2030-06-10',calendar:true,reminderAt:null}));
+    store.setting('googleTokens',{access_token:'mock',expiresAt:Date.now()+3600000});let payload;
+    const integration=new Integrations(store,{},async(url,options)=>{payload=JSON.parse(options.body);return Response.json({id:'mock'});});
+    await integration.syncCalendar(item);
+    assert.deepEqual(payload.start,{date:'2030-06-10'});assert.deepEqual(payload.end,{date:'2030-06-11'});assert.deepEqual(payload.reminders.overrides,[]);
+    const calendar=ics([item]);assert.match(calendar,/DTSTART;VALUE=DATE:20300610/);assert.match(calendar,/DTEND;VALUE=DATE:20300611/);
+  }finally{store.close();}
+});

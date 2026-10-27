@@ -5,7 +5,7 @@ export function ics(tasks) {
   const stamp = value => new Date(value).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
   const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//JYTODO//KO', 'CALSCALE:GREGORIAN'];
   for (const task of tasks) {
-    lines.push('BEGIN:VEVENT', `UID:${task.id}@jytodo.local`, `DTSTAMP:${stamp(task.createdAt)}`, `DTSTART:${stamp(task.dueAt)}`, `DTEND:${stamp(Date.parse(task.dueAt)+1800000)}`, `SUMMARY:${escape(task.title)}`, `DESCRIPTION:${escape(task.notes)}`, `STATUS:${task.completed ? 'CANCELLED' : 'CONFIRMED'}`, 'END:VEVENT');
+    lines.push('BEGIN:VEVENT', `UID:${task.id}@jytodo.local`, `DTSTAMP:${stamp(task.createdAt)}`, ...(task.dueAt.includes('T') ? [`DTSTART:${stamp(task.dueAt)}`, `DTEND:${stamp(Date.parse(task.dueAt)+1800000)}`] : [`DTSTART;VALUE=DATE:${task.dueAt.replaceAll('-','')}`, `DTEND;VALUE=DATE:${new Date(Date.parse(task.dueAt)+86400000).toISOString().slice(0,10).replaceAll('-','')}`]), `SUMMARY:${escape(task.title)}`, `DESCRIPTION:${escape(task.notes)}`, `STATUS:${task.completed ? 'CANCELLED' : 'CONFIRMED'}`, 'END:VEVENT');
   }
   lines.push('END:VCALENDAR');
   // RFC 5545: fold by UTF-8 octets without splitting Korean characters.
@@ -65,7 +65,9 @@ export class Integrations {
         }
         task.googleEventId = null;
       } else {
-        const event = { summary: task.title, description: task.notes, start: { dateTime: task.dueAt, timeZone: task.timezone }, end: { dateTime: new Date(Date.parse(task.dueAt) + 1800000).toISOString(), timeZone: task.timezone }, reminders: { useDefault: false, overrides: task.reminderMinutes === null ? [] : [{ method: 'popup', minutes: task.reminderMinutes }] } };
+        const timed = task.dueAt.includes('T');
+        const minutes = task.reminderAt ? Math.floor((Date.parse(task.dueAt)-Date.parse(task.reminderAt))/60000) : -1;
+        const event = { summary: task.title, description: task.notes, start: timed ? { dateTime: task.dueAt, timeZone: task.timezone } : { date: task.dueAt }, end: timed ? { dateTime: new Date(Date.parse(task.dueAt) + 1800000).toISOString(), timeZone: task.timezone } : { date: new Date(Date.parse(task.dueAt)+86400000).toISOString().slice(0,10) }, reminders: { useDefault: false, overrides: timed && minutes >= 0 && minutes <= 40320 ? [{ method: 'popup', minutes }] : [] } };
         const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
         let response = await this.request(eventUrl, { method: 'PUT', headers, body: JSON.stringify(event), signal: AbortSignal.timeout(15000) });
         if (response.status === 404) response = await this.request(base, { method: 'POST', headers, body: JSON.stringify({ ...event, id: eventId }), signal: AbortSignal.timeout(15000) });

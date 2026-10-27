@@ -32,8 +32,16 @@ try {
   const settings=await page.evaluate(()=>window.jytodoDesktop.settings());
   assert.ok(settings.tray,'Tray must exist to test close-to-tray');
   assert.equal(settings.autoLaunch,false,'Auto launch is opt-in');
+  // OFF and date-only entries cannot wake a hidden native window.
+  await page.evaluate(async()=>{
+    const base={notes:'',slack:false,calendar:false,timezone:'Asia/Seoul',color:'#9abccd'};
+    for(const task of [{title:'날짜만 저장',dueAt:'2020-01-01',reminderAt:null},{title:'알림 OFF',dueAt:'2020-01-02T02:00:00Z',reminderAt:null}]){
+      const response=await fetch('/api/tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...base,...task})});if(!response.ok)throw new Error('Disabled alarm fixture failed');
+    }
+  });
+  assert.deepEqual(await page.evaluate(()=>fetch('/api/alarms').then(r=>r.json())),[]);
   const result=await page.evaluate(async()=>{
-    const response=await fetch('/api/tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:'창을 닫아도 알림',notes:'트레이에서 다시 열리는지 검증',dueAt:new Date(Date.now()+6000).toISOString(),reminderMinutes:0,category:'personal',priority:'high',timezone:'Asia/Seoul',slack:false,calendar:false})});
+    const response=await fetch('/api/tasks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:'창을 닫아도 알림',notes:'트레이에서 다시 열리는지 검증',dueAt:new Date(Date.now()+3600000).toISOString(),reminderAt:new Date(Date.now()+6000).toISOString(),reminderMinutes:null,color:'#d887a4',timezone:'Asia/Seoul',slack:false,calendar:false})});
     return {status:response.status,task:await response.json()};
   });
   assert.equal(result.status,201);
@@ -43,7 +51,7 @@ try {
   await page.getByRole('button',{name:'10분 뒤 다시 알림'}).click();
   await page.getByRole('dialog').waitFor({state:'hidden'});
   const tasks=await page.evaluate(()=>fetch('/api/tasks').then(r=>r.json()));
-  assert.ok(Date.parse(tasks[0].reminderAt)>Date.now()+580000);
+  assert.ok(Date.parse(tasks.find(task=>task.id===result.task.id).reminderAt)>Date.now()+580000);
   await page.getByRole('button',{name:'연동 설정 열기'}).click();
   await page.getByRole('heading',{name:'Windows 프로그램 설정'}).waitFor();
   await page.getByRole('button',{name:'닫기',exact:true}).click();
@@ -52,8 +60,10 @@ try {
   await desktop.close();desktop=null;
   page=await launch();
   const restored=await page.evaluate(()=>fetch('/api/tasks').then(r=>r.json()));
-  assert.equal(restored.length,1);assert.equal(restored[0].title,'창을 닫아도 알림');
-  assert.equal(restored[0].reminderAt,tasks[0].reminderAt);
+  assert.equal(restored.length,3);const restoredAlarm=restored.find(task=>task.id===result.task.id);assert.equal(restoredAlarm.title,'창을 닫아도 알림');
+  assert.equal(restoredAlarm.reminderAt,tasks.find(task=>task.id===result.task.id).reminderAt);
+  assert.equal(restored.find(task=>task.title==='날짜만 저장').dueAt,'2020-01-01');
+  assert.equal(restored.find(task=>task.title==='알림 OFF').reminderAt,null);
   await desktop.close();desktop=null;
   options.env.CLOUD_REQUIRED='1';
   desktop=await electron.launch(options);page=await desktop.firstWindow();
