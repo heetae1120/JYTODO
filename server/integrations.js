@@ -15,7 +15,7 @@ export function ics(tasks) {
 export class Integrations {
   constructor(store, config = process.env, request = fetch) { this.store = store; this.config = config; this.request = request; this.oauthStates = new Map(); this.slackRetry = new Map(); }
   status() {
-    return { slack: { configured: Boolean(this.config.SLACK_WEBHOOK_URL) }, google: { configured: Boolean(this.config.GOOGLE_CLIENT_ID && this.config.GOOGLE_CLIENT_SECRET), connected: Boolean(this.store.setting('googleTokens')) } };
+    return { slack: { configured: Boolean(this.config.SLACK_WEBHOOK_URL),...(this.config.DEVICE_SLACK_AVAILABLE?{deviceAvailable:true}:{}) }, google: { configured: Boolean(this.config.GOOGLE_CLIENT_ID && this.config.GOOGLE_CLIENT_SECRET), connected: Boolean(this.store.setting('googleTokens')) } };
   }
   async json(url, options) {
     const response = await this.request(url, { ...options, signal: AbortSignal.timeout(15000) });
@@ -27,7 +27,7 @@ export class Integrations {
     const state = randomBytes(32).toString('hex');
     const verifier = randomBytes(32).toString('base64url');
     for (const [key, value] of this.oauthStates) if (value.expires < Date.now()) this.oauthStates.delete(key);
-    this.oauthStates.set(state, { verifier, expires: Date.now() + 600000 });
+    this.oauthStates.set(state, { verifier, owner:this.store.owner, expires: Date.now() + 600000 });
     const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     url.search = new URLSearchParams({ client_id: this.config.GOOGLE_CLIENT_ID, redirect_uri: `${this.config.APP_URL || 'http://localhost:3000'}/api/google/callback`, response_type: 'code', scope: 'https://www.googleapis.com/auth/calendar.events', access_type: 'offline', prompt: 'consent', state, code_challenge: createHash('sha256').update(verifier).digest('base64url'), code_challenge_method: 'S256' });
     return { state, url: url.toString() };
@@ -35,7 +35,7 @@ export class Integrations {
   async finishGoogle(code, state, cookieState) {
     const session = this.oauthStates.get(state);
     this.oauthStates.delete(state);
-    if (!session || session.expires < Date.now() || state !== cookieState || !code) throw new Error('인증 요청이 만료되었습니다. 다시 연결해 주세요.');
+    if (!session || session.owner!==this.store.owner || session.expires < Date.now() || state !== cookieState || !code) throw new Error('인증 요청이 만료되었습니다. 다시 연결해 주세요.');
     const tokens = await this.json('https://oauth2.googleapis.com/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ code, client_id: this.config.GOOGLE_CLIENT_ID, client_secret: this.config.GOOGLE_CLIENT_SECRET, redirect_uri: `${this.config.APP_URL || 'http://localhost:3000'}/api/google/callback`, grant_type: 'authorization_code', code_verifier: session.verifier }) });
     this.store.setting('googleTokens', { ...tokens, expiresAt: Date.now() + tokens.expires_in * 1000 });
   }

@@ -2,6 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ArrowDownWideNarrow, ArrowRight, Bell, BellRing, CalendarDays, CalendarPlus, Check, CheckCheck, ChevronLeft, ChevronRight, Circle, Clock3, Download, ExternalLink, Flag, Layers, ListTodo, LoaderCircle, MoreHorizontal, Pencil, Plug, Plus, Search, Settings2, SlidersHorizontal, Sparkles, Trash2, X } from 'lucide-react';
 import './styles.css';
+import './accounts.css';
+import { api, post } from './api';
+import { AccountGate, AccountBar, AccountBadge } from './accounts';
 
 const categories = { work: '업무', personal: '개인', study: '공부' };
 const isDesktop = Boolean(window.jytodoDesktop);
@@ -10,13 +13,6 @@ const localDay = value => { const d = new Date(value); return `${d.getFullYear()
 const clock = value => new Date(value).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 const dayLabel = value => new Date(value).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' });
 const dateLabel = value => new Date(value).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric', weekday: 'short' });
-async function api(path, options = {}) {
-  const response = await fetch(`/api${path}`, { ...options, headers: { 'Content-Type': 'application/json', ...options.headers } });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error || '요청을 처리하지 못했습니다.');
-  return data;
-}
-const post = body => ({ method: 'POST', body: JSON.stringify(body || {}) });
 
 function Modal({ title, subtitle, onClose, children, className = '' }) {
   const ref = useRef();
@@ -99,6 +95,7 @@ function DesktopSettings({ notify }) {
 
 function Connections({ status, onClose, refresh, notify }) {
   const [busy, setBusy] = useState(false);
+  async function bindSlack(enabled) {setBusy(true);try{await api('/auth/slack-device',post({enabled}));await refresh();notify(enabled?'이 계정에서 이 PC의 Slack 연결을 사용합니다.':'이 계정의 Slack 연결을 해제했습니다.');}catch(error){notify(error.message,true);}finally{setBusy(false);}}
   async function testSlack() { setBusy(true); try { await api('/slack/test', post()); notify('Slack으로 테스트 메시지를 보냈습니다.'); } catch(e) { notify(e.message, true); } finally { setBusy(false); } }
   async function disconnect() { setBusy(true); try { await api('/google/disconnect', post()); await refresh(); notify('Google 연결을 해제했습니다. 기존 캘린더 일정은 유지됩니다.'); } catch(e) { notify(e.message, true); } finally { setBusy(false); } }
   return <Modal title="앱 연동" subtitle="일정과 알림을 자주 쓰는 도구에서도 만나보세요." onClose={onClose} className="connections-modal">
@@ -108,6 +105,7 @@ function Connections({ status, onClose, refresh, notify }) {
     {status.google.configured ? status.google.connected ? <button disabled={busy} onClick={disconnect} className="button secondary">연결 해제</button> : <a className="button secondary" href="/api/google/connect">Google 계정 연결 <ExternalLink size={14}/></a> : <div className="setup-note"><strong>연동 정보를 한 번만 설정해 주세요</strong><p>Google Cloud에서 Calendar API를 켜고 OAuth 웹 클라이언트를 만든 뒤, <code>{isDesktop ? 'integration.env' : '.env'}</code>에 <code>GOOGLE_CLIENT_ID</code>와 <code>GOOGLE_CLIENT_SECRET</code>을 등록하세요. 리디렉션 주소는 README에 안내되어 있습니다.</p></div>}
     <div className="connection-divider"/>
     <div className="connection-item"><div className="service-logo"><SlackIcon/></div><div><h3>Slack <span className={`status ${status.slack.configured ? 'connected' : ''}`}>{status.slack.configured ? '설정됨' : '설정 전'}</span></h3><p>선택한 할 일의 알림 시간에 채널로 메시지를 보냅니다.</p></div></div>
+    {status.slack.deviceAvailable&&<div className="setup-note"><p>이 PC에 등록된 Webhook 채널로 메시지를 전송합니다. 본인 채널인지 확인한 후 이 계정에 연결해 주세요. 다른 계정의 연결을 자동으로 재사용하지 않습니다.</p><button className="button secondary" disabled={busy} onClick={()=>bindSlack(!status.slack.configured)}>{status.slack.configured?'이 계정의 PC 연결 해제':'이 계정에서 이 PC Slack 연결 사용'}</button></div>}
     {status.slack.configured ? <button disabled={busy} onClick={testSlack} className="button secondary">{busy ? '확인 중…' : '테스트 메시지 보내기'} <ArrowRight size={14}/></button> : <div className="setup-note"><strong>Slack Incoming Webhook을 연결해 주세요</strong><p>알림을 받을 채널의 Incoming Webhook URL을 설정 파일 <code>{isDesktop ? 'integration.env' : '.env'}</code>의 <code>SLACK_WEBHOOK_URL</code>에 등록한 뒤 앱을 재시작하세요. 키를 화면이나 채팅에 입력할 필요는 없습니다.</p></div>}
     <p className="help-text">{isDesktop ? '예약 전송에는 프로그램이 트레이에서 실행 중이어야 합니다.' : '예약 전송에는 서버가 실행 중이어야 합니다.'} 전송 실패는 할 일에 표시되고 1분 간격으로 재시도합니다.</p>
     <div className="export-box"><div><strong>계정 연결 없이 캘린더에 추가</strong><p>ICS 파일을 내려받아 캘린더 앱으로 가져올 수 있어요.</p></div><a className="icon-button" href="/api/calendar.ics" aria-label="캘린더 파일 다운로드"><Download size={20}/></a></div>
@@ -192,10 +190,11 @@ function App() {
   return <div className="app-shell">
     <aside className="sidebar"><a href="/" className="brand"><span className="brand-mark"><Check size={24} strokeWidth={3}/></span>JYTODO<span className="brand-dot">.</span></a><div className="workspace-label">MY WORKSPACE <span>개인 공간</span></div><nav aria-label="주 메뉴">{[{key:'today',icon:ListTodo,label:'오늘의 할 일',count:todayTasks.filter(t=>!t.completed).length},{key:'all',icon:Layers,label:'모든 할 일',count:pending.length},{key:'upcoming',icon:Clock3,label:'다가오는 할 일'},{key:'calendar',icon:CalendarDays,label:'캘린더'},{key:'completed',icon:CheckCheck,label:'완료한 할 일'}].map(({key,icon:Icon,label,count})=><button key={key} className={`nav-item ${view===key?'active':''}`} onClick={()=>navigate(key)}><Icon size={19}/><span>{label}</span>{count!==undefined&&<span className="nav-count">{count}</span>}</button>)}</nav>
       <div className="sidebar-section-title">내 분류 <span>3</span></div><div className="category-nav">{Object.entries(categories).map(([key,label])=><button key={key} onClick={()=>{setCategory(category===key?'all':key);if(view==='completed')setView('all');}} className={category===key?'selected':''}><span className={`category-dot ${key}`}/>{label}<span>{pending.filter(t=>t.category===key).length}</span></button>)}</div>
-      <div className="sidebar-bottom"><div className="calm-card"><span className="calm-art">✳</span><h3>하나씩, 차근차근.</h3><p>작은 실천이 모여<br/>더 나은 하루가 됩니다.</p><div className="calm-line"/></div><button className="nav-item" onClick={()=>setConnections(true)}><Plug size={19}/><span>앱 연동 및 설정</span><span className="connection-dot"/></button><div className="profile"><div className="avatar">JY</div><div><strong>나의 워크스페이스</strong><span>나만의 속도로 채우는 하루</span></div><span className="local-badge">LOCAL</span></div></div>
+      <div className="sidebar-bottom"><div className="calm-card"><span className="calm-art">✳</span><h3>하나씩, 차근차근.</h3><p>작은 실천이 모여<br/>더 나은 하루가 됩니다.</p><div className="calm-line"/></div><button className="nav-item" onClick={()=>setConnections(true)}><Plug size={19}/><span>앱 연동 및 설정</span><span className="connection-dot"/></button><div className="profile"><div className="avatar">JY</div><div><strong>나의 워크스페이스</strong><span>나만의 속도로 채우는 하루</span></div><AccountBadge/></div></div>
     </aside>
     <div className="main-shell"><header className="topbar"><div className="breadcrumbs">내 워크스페이스 <ChevronRight size={14}/><strong>{titles[view]}</strong></div><div className="top-actions"><span className="today-date">{dayLabel(now)}</span><button className="icon-button" aria-label="연동 설정 열기" title="앱 연동 및 설정" onClick={()=>setConnections(true)}><Settings2 size={18}/></button><button className={`icon-button notification-button ${notificationPermission==='granted'?'enabled':''}`} onClick={enableNotifications} aria-label="시스템 알림 켜기" title={notificationPermission==='granted'?'시스템 알림 허용됨':'시스템 알림 켜기'}><Bell size={19}/>{notificationPermission==='granted'&&<i/>}</button><div className="avatar small">JY</div></div></header>
       <main><div className="page-heading"><div><p className="eyebrow"><span/> MAKE ROOM FOR WHAT MATTERS</p><h1>{titles[view]}<span className="heading-dot">.</span></h1><p className="page-description">오늘 해야 할 일을 정리하고, 소중한 시간에 집중하세요.</p></div><button className="button primary add-button" onClick={()=>setForm({})}><Plus size={18}/>할 일 추가<span className="shortcut">＋</span></button></div>
+        <AccountBar/>
         {loadError&&<div className="error-banner" role="alert">서버에 연결하지 못했습니다. {loadError} <button onClick={()=>refresh().catch(e=>setLoadError(e.message))}>다시 시도</button></div>}
         <div className="summary-grid"><div className="summary-card"><div className="stat-icon green"><ListTodo size={20}/></div><div><span>오늘의 할 일</span><strong>{todayTasks.length}<small>개</small></strong></div><span className="stat-caption">차근차근 시작해요</span></div><div className="summary-card"><div className="stat-icon blue"><CheckCheck size={20}/></div><div><span>완료한 할 일</span><strong>{completedToday}<small>개</small></strong></div><div className="progress-area"><span>{todayTasks.length?Math.round(completedToday/todayTasks.length*100):0}% 달성</span><div className="progress-track"><i style={{width:`${todayTasks.length?completedToday/todayTasks.length*100:0}%`}}/></div></div></div><div className="summary-card next-card"><div className="stat-icon orange"><BellRing size={20}/></div><div><span>다음 일정</span><strong className="next-time">{next?clock(next.dueAt):'여유로운 하루'}{next&&<small>{localDay(next.dueAt)===today?'오늘':dateLabel(next.dueAt)}</small>}</strong></div><p>{next?next.title:'새로운 계획을 추가해 보세요'}</p></div></div>
         <div className="content-grid"><section className="tasks-panel">
@@ -220,4 +219,4 @@ function App() {
   </div>;
 }
 
-createRoot(document.getElementById('root')).render(<App/>);
+createRoot(document.getElementById('root')).render(<AccountGate><App/></AccountGate>);

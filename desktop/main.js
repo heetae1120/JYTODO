@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { Store } from '../server/store.js';
 import { createApp } from '../server/app.js';
 import { DesktopAlarms } from './alarms.js';
+import { publicConfig } from '../server/public-config.js';
 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const testData = !app.isPackaged && process.env.JYTODO_DESKTOP_DATA;
@@ -53,9 +54,11 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
     const configPath = join(dataDirectory, 'integration.env');
     if (!existsSync(configPath)) writeFileSync(configPath, '# JYTODO integrations. Edit locally, save, then restart JYTODO. Never share this file.\nGOOGLE_CLIENT_ID=\nGOOGLE_CLIENT_SECRET=\nSLACK_WEBHOOK_URL=\n', { mode: 0o600 });
     const localConfig = parseEnv(readFileSync(configPath, 'utf8'));
-    const config = {};
+    const config = publicConfig();
+    if(process.env.CLOUD_REQUIRED==='0')config.CLOUD_REQUIRED='0';
     // Only integration credentials can be read from this user-editable file.
     for (const name of ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'SLACK_WEBHOOK_URL']) config[name] = localConfig[name] || process.env[name] || '';
+    for (const name of ['SUPABASE_URL','SUPABASE_PUBLISHABLE_KEY']) config[name] = localConfig[name] || process.env[name] || config[name] || '';
     const port = Number(process.env.JYTODO_DESKTOP_PORT || 43127);
     if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error('프로그램 포트 설정을 확인해 주세요.');
     origin = `http://127.0.0.1:${port}`;
@@ -65,7 +68,9 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
     store = new Store(join(dataDirectory, 'jytodo.sqlite'));
     // Electron's network stack uses the OS proxy and supported HTTPS trust chain.
     const { net } = await import('electron');
-    const { app: backend, integrations } = createApp(store, config, (url, options) => net.fetch(String(url), options));
+    const runtime = createApp(store, config, (url, options) => net.fetch(String(url), options));
+    const {app:backend}=runtime;
+    runtime.accounts.onSessionChange=()=>{for(const notification of notifications)notification.close();notifications.clear();};
     backend.use(express.static(join(root, 'dist')));
     backend.get('/{*path}', (req, res) => res.sendFile(join(root, 'dist/index.html')));
     server = await new Promise((resolve, reject) => {
@@ -89,6 +94,8 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
     window.webContents.on('will-navigate', (event, target) => {
       const url = new URL(target);
       if (url.origin === origin && url.pathname === '/api/google/connect') {
+        event.preventDefault(); shell.openExternal(target);
+      } else if (['https://supabase.com/dashboard/new','https://github.com/heetae1120/JYTODO/blob/main/supabase/schema.sql'].includes(target)) {
         event.preventDefault(); shell.openExternal(target);
       } else if (url.origin !== origin) event.preventDefault();
     });
@@ -120,7 +127,7 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
     });
     ipcMain.handle('desktop:open-data-folder', event => { trusted(event); return shell.openPath(dataDirectory); });
     ipcMain.handle('desktop:test-notification', event => { trusted(event); showNotification('JYTODO 알림 확인', '예약 시간이 되면 프로그램 창과 Windows 알림으로 알려드립니다.'); return Notification.isSupported(); });
-    const alarms = new DesktopAlarms(store, task => {
+    const alarms = new DesktopAlarms({due:()=>{const selected=runtime.store;return selected?selected.due().map(task=>({...task,_account:selected.owner})):[];}}, task => {
       showWindow();
       const date = new Intl.DateTimeFormat('ko-KR', { dateStyle:'medium', timeStyle:'short' }).format(new Date(task.dueAt));
       showNotification('JYTODO · 할 일 알림', `${task.title}\n${date}`);
@@ -130,12 +137,13 @@ if (!app.requestSingleInstanceLock()) { app.quit(); } else {
     const tick = () => {
       if (!store || quitting) return;
       try { alarms.tick(); } catch (error) { console.error('Desktop alarm delivery failed:', error.message); }
-      integrations.deliverSlack().catch(() => {});
+      runtime.background().catch(() => {});
     };
     timer = setInterval(tick, 1000);
     powerMonitor.on('resume', tick);
     tick();
   } catch (error) {
+    console.error('JYTODO startup failed:',error.message);
     dialog.showErrorBox('JYTODO를 시작하지 못했습니다', error.code === 'EADDRINUSE' ? '프로그램 포트(43127)가 사용 중입니다. 이미 실행 중인 JYTODO를 확인하거나 다른 프로그램을 종료한 뒤 다시 실행해 주세요.' : error.message);
     app.quit();
   }

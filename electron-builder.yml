@@ -9,6 +9,7 @@ files:
   - desktop/**/*
   - server/**/*
   - package.json
+  - cloud-config.json
 win:
   target:
     - target: portable

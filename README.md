@@ -1,39 +1,73 @@
-# JYTODO — Windows 투두리스트 프로그램
+# JYTODO — Windows 계정 동기화 투두리스트
 
-우선 Windows PC용 프로그램으로 개발합니다. 모바일 앱은 추후 범위입니다. Electron 전용 창에서 실행하며, 사용자가 별도로 브라우저나 Node.js 서버를 실행할 필요가 없습니다.
+Windows PC에서 이메일·비밀번호로 로그인하고, 같은 계정의 할 일을 다른 PC에서도 불러오는 데스크톱 프로그램입니다. 모바일 앱은 추후 범위입니다. 인증과 저장은 Supabase를 사용하며, 사용자 PC에서는 브라우저나 Node 서버를 따로 실행하지 않습니다.
 
-## GitHub 다운로드
+## 다운로드와 업데이트
 
-[최신 릴리스](https://github.com/heetae1120/JYTODO/releases/latest)의 **Assets**에서 Windows 실행 파일 또는 ZIP을 받으세요. 첫 빌드가 진행 중이면 [Windows 빌드 진행 상황](https://github.com/heetae1120/JYTODO/actions/workflows/release.yml)을 확인할 수 있습니다. 빌드와 테스트가 성공해야 다운로드 파일이 릴리스에 첨부됩니다.
+[GitHub 최신 릴리스](https://github.com/heetae1120/JYTODO/releases/latest)의 Assets에서 받으세요.
 
-`v*` 태그를 올리면 GitHub Actions가 Windows에서 테스트·빌드하고 GitHub Releases에 실행 파일, ZIP, SHA256SUMS를 게시합니다. 수동 실행은 Actions의 Run workflow에서 가능하며, 태그가 아닌 브랜치에서 실행하면 Actions 아티팩트만 생성합니다. GitHub Actions에는 저장소 기본 토큰만 사용하며 개인 토큰이나 연동 키를 등록할 필요가 없습니다.
+- `JYTODO-Portable-0.2.0-x64.exe`: 설치 없이 실행하는 Windows 64비트 단일 파일
+- `JYTODO-0.2.0-Windows-x64.zip`: 전체 압축을 푼 뒤 `JYTODO.exe` 실행. EXE만 따로 옮기면 실행되지 않습니다.
+- `SHA256SUMS`: 파일 무결성 확인용
 
-## Windows 설치·실행
+업데이트 전에는 기존 프로그램을 **트레이에서 완전히 종료**하세요. 현재 실행 파일은 코드 서명 전 개발 버전입니다. 자동 실행을 설정했다면 실행 파일을 같은 위치에 유지하세요.
 
-`release/`에 생성되는 두 배포물 중 하나를 사용합니다.
+## 처음 한 번: Supabase 동기화 공간 만들기
 
-- **JYTODO-Portable-0.1.0-x64.exe**: 설치 없이 바로 실행하는 Windows 64비트 단일 실행 파일입니다. 자동 실행을 켰다면 이 파일을 같은 위치에 유지하세요.
-- **JYTODO-0.1.0-Windows-x64.zip**: 폴더형 배포물입니다. 전체 압축을 푼 뒤 **JYTODO.exe**를 실행하세요. EXE만 따로 옮기면 실행되지 않습니다. 자동 실행을 켠 후 폴더를 옮겼다면 다시 설정해야 합니다.
+실제 Supabase 프로젝트나 사용자 계정은 실행 파일에 포함되어 있지 않습니다. 프로젝트 소유자가 본인 Supabase 계정에서 다음을 준비합니다. [자세한 새 프로젝트 설정 안내](supabase/SETUP.ko.md)를 참고하세요.
 
-현재는 코드 서명 전의 개발 버전입니다. 설치형 NSIS 빌드는 이 Linux 환경의 Wine 호환 오류로 완료되지 않았으며, Windows PC에서 `npm run package:installer:win`으로 별도 생성할 수 있습니다. 설치형에서 제공하는 시작 메뉴 바로가기는 Windows 시스템 알림 등록에도 도움이 됩니다. Windows 설치·OS 알림·시작 프로그램 등록의 최종 확인은 실제 Windows PC에서 필요합니다. Linux Electron 검증을 Windows 실기 검증으로 간주하지 않습니다.
+1. [Supabase 새 프로젝트](https://supabase.com/dashboard/new)에서 무료 프로젝트를 만듭니다. DB 비밀번호는 Supabase 화면에서 직접 설정하며 프로그램에 입력하지 않습니다.
+2. **SQL Editor**에서 [supabase/schema.sql](supabase/schema.sql) 전체를 실행합니다. 계정별 접근 정책(RLS)과 충돌 방지 함수를 함께 만듭니다. RLS를 끄지 마세요.
+3. **Authentication → URL Configuration**의 Site URL과 Redirect URLs에 `http://127.0.0.1:43127/auth/confirmed`를 설정합니다. 이메일 가입과 이메일 확인을 켜 둡니다.
+4. 프로그램의 **동기화 공간 준비** 화면에 프로젝트 URL과 **Publishable 또는 anon 공개 키**를 입력합니다. `service_role`, `sb_secret_` 관리자 키는 사용할 수 없습니다.
+5. 프로그램에서 **회원가입 → 이메일 인증 → 로그인**합니다. Supabase 관리 계정과 프로그램의 사용자 계정은 별개입니다.
 
-## 닫기·트레이·예약 알림
+다른 PC에서도 **같은 Supabase 프로젝트**를 연결하고 **같은 이메일·비밀번호**로 로그인하세요. 공개 연결 정보는 PC당 한 번만 입력합니다. 로그인 세션은 저장하지 않아 프로그램을 완전히 종료했다가 다시 실행하면 로그인 화면이 나옵니다. 창을 트레이에 숨기는 동작은 완전 종료가 아닙니다.
 
-- 창의 **X**는 종료하지 않고 **트레이(작업 표시줄 알림 영역)** 로 숨깁니다.
-- 예약 시간에 메인 프로세스가 창을 다시 열고 할 일 팝업과 OS 알림을 표시합니다. 브라우저를 열어둘 필요가 없습니다.
-- 트레이 아이콘을 누르면 창이 열립니다. 트레이 메뉴의 **완전히 종료**, 프로그램 메뉴의 **완전히 종료**, `Ctrl+Q`는 예약 처리도 종료합니다.
-- **앱 연동 및 설정 → Windows 시작 시 자동 실행**은 초기에는 꺼져 있습니다. 사용자가 Windows 배포 실행 파일에서 선택할 수 있습니다.
-- PC 종료·절전·프로그램 완전 종료 중에는 알림이 울리지 않습니다. 재실행/절전 복귀 후 미확인 지난 알림을 표시합니다. OS 방해 금지와 알림 차단은 시스템 알림 표시를 제한할 수 있습니다.
-- 트레이를 지원하지 않는 환경에서는 닫을 때 프로그램이 종료됩니다. 설정 화면에 이를 안내하며 예약을 유지하려면 창을 최소화해야 합니다.
+### 다른 PC에서는 아이디만 입력하도록 배포하기
 
-## PC 데이터와 외부 서비스 설정
+프로젝트 소유자가 `cloud-config.json`에 아래 공개 정보를 넣고 다시 빌드하면, 모든 배포 PC에서 프로젝트 설정을 생략하고 로그인만 하면 됩니다.
 
-**앱 연동 및 설정 → 데이터·연동 설정 폴더 열기**를 누릅니다. Windows 기본 위치는 `%APPDATA%/jytodo`입니다.
+```json
+{
+  "SUPABASE_URL": "https://프로젝트.supabase.co",
+  "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_공개키",
+  "CLOUD_REQUIRED": true
+}
+```
 
-- `jytodo.sqlite` 및 WAL 파일: 할 일과 Google OAuth 토큰
-- `integration.env`: 최초 실행 시 빈 템플릿이 생성되는 연동 설정
+이 파일에는 로그인 비밀번호·관리자 키·Slack Webhook·Google Secret을 넣지 않습니다. URL과 공개 키는 공개 가능한 정보이며, 실제 데이터 보호는 SQL의 RLS와 사용자 로그인으로 처리합니다. 프로그램에서 직접 선택해 저장한 프로젝트 설정은 배포 기본값보다 우선합니다.
 
-`integration.env`를 메모장으로 수정한 뒤 트레이에서 **완전히 종료**하고 다시 실행하세요. 비밀 값은 Git이나 채팅으로 공유하지 마세요.
+## 로그인·동기화 동작
+
+- 처음 로그인할 때 인터넷에 연결되어 있어야 합니다. 인증 후 서버 내역과 해당 계정의 PC 캐시를 불러옵니다.
+- 실행 중 약 10초 간격으로 동기화합니다. 화면의 **지금 동기화**로 바로 요청할 수 있습니다.
+- 로그인 후 인터넷이 끊겨도 할 일 수정과 PC 알림은 동작합니다. 변경 내용은 계정별로 PC에 보관했다가 재연결/다음 로그인 때 보냅니다.
+- 다른 PC가 같은 항목을 수정했다면 자동 덮어쓰기 대신 **계정 관리**에서 이 PC/서버의 내역 중 하나를 선택합니다. 수정과 삭제가 충돌한 경우도 같습니다.
+- 삭제 표시를 서버에 보관하여 오랫동안 꺼져 있던 PC에서 삭제된 항목이 다시 생기는 것을 막습니다. 삭제한 항목의 보관 내용은 프로젝트 소유자의 DB 관리 정책을 따릅니다.
+- 로그아웃하면 작업 화면·알림·서버 접근이 잠깁니다. 미동기화 변경은 해당 계정의 PC 캐시에 남고, 다시 그 계정으로 로그인하면 전송합니다.
+- 두 계정의 할 일·대기 변경·Google 토큰은 분리합니다. Supabase 접근 토큰과 refresh token, 로그인 비밀번호는 파일이나 브라우저 저장소에 저장하지 않습니다.
+
+### 기존 0.1 버전 데이터 가져오기
+
+기존 로컬 SQLite 파일과 `tasks` 테이블은 그대로 둡니다. 로그인 후 **계정 관리 → 기존 할 일 가져오기 → 이 계정으로 가져오기**를 선택해야 업로드합니다. 자동으로 특정 계정에 귀속시키지 않습니다. 반복 가져오기는 이미 가져온 항목을 중복 복사하지 않습니다. Google·Slack 전송 설정은 다시 선택하며, 기존 비밀 키와 토큰은 계정으로 복사하지 않습니다.
+
+## 할 일·예약 팝업
+
+- 날짜·시간순 목록, 주간 날짜 선택, 월간 캘린더
+- 추가·수정·삭제·완료/취소, 메모, 분류, 중요도, 검색·필터
+- 정시 또는 5/10/30/60분 전 알림, 확인, 10분 뒤 다시 알림
+- 창의 **X**는 트레이로 숨깁니다. 로그인 상태라면 예약 시간에 메인 프로세스가 창을 다시 열고 팝업·OS 알림을 표시합니다.
+- 트레이의 **완전히 종료**, 프로그램 메뉴의 **완전히 종료**, `Ctrl+Q`는 프로그램과 알림 처리를 종료합니다.
+- **Windows 시작 시 자동 실행**은 사용자가 선택하는 옵션입니다. PC 시작 후에도 먼저 로그인해야 알림이 동작합니다.
+- PC 종료·절전·로그아웃·완전 종료 중에는 알림이 울리지 않습니다. 다시 로그인하거나 절전에서 복귀하면 미확인 지난 알림을 처리합니다.
+- 알림은 각 실행 중인 PC에서 표시됩니다. Windows 방해 금지/알림 차단은 시스템 토스트를 제한할 수 있습니다. 트레이를 지원하지 않는 시스템에서는 창을 최소화해서 유지해야 합니다.
+
+시간은 입력한 PC 시간대에서 UTC로 저장하고, 목록은 현재 기기의 현지 시간으로 보여 줍니다.
+
+## Google 캘린더·Slack
+
+**앱 연동 및 설정 → 데이터·연동 설정 폴더 열기**에서 `integration.env`를 수정하고 완전히 종료 후 재실행합니다.
 
 ```dotenv
 GOOGLE_CLIENT_ID=
@@ -41,17 +75,23 @@ GOOGLE_CLIENT_SECRET=
 SLACK_WEBHOOK_URL=
 ```
 
-Google Cloud에서 Calendar API를 활성화하고 OAuth 동의 화면/테스트 사용자를 설정합니다. 현재 개인 개발 버전은 **웹 애플리케이션 OAuth 클라이언트**를 사용하며, 승인된 리디렉션 URI에 정확히 `http://127.0.0.1:43127/api/google/callback`을 등록하세요. Client ID/Secret 설정과 재시작 후 프로그램의 **Google 계정 연결**을 누르면 기본 브라우저에서 인증합니다. 완료 안내가 보이면 프로그램으로 돌아옵니다. 선택한 할 일을 기본 캘린더에 전송하는 단방향 연동이며, Google에서 수정한 내용을 가져오지는 않습니다.
+- **Google**: Cloud에서 Calendar API와 웹 OAuth 클라이언트를 설정하고 리디렉션 URI `http://127.0.0.1:43127/api/google/callback`을 등록합니다. 프로그램의 Google 계정 연결로 기본 브라우저에서 인증합니다. 선택한 할 일을 기본 캘린더의 30분 일정으로 전송하는 단방향 연동입니다.
+- **Slack**: Incoming Webhook을 만들고 URL을 설정합니다. 계정별로 **이 계정에서 이 PC Slack 연결 사용**을 선택해야 사용합니다. 다른 계정의 연결을 자동 재사용하지 않습니다. 연결 후 테스트 버튼이나 알림을 선택한 할 일에서만 메시지를 전송합니다.
+- 외부 서비스 토큰·연결·전송 상태는 PC별·계정별 로컬 정보입니다. 할 일은 동기화하지만 다른 PC의 변경을 Google로 자동 재전송하는 기능은 아직 포함하지 않습니다. 새 PC에서는 외부 서비스도 연결해야 합니다.
+- Slack 알림용 PC를 한 대만 연결하면 중복 전송을 피할 수 있습니다. 여러 PC에서 같은 채널로 예약 전송하면 중복 알림이 생길 수 있습니다. 실패는 항목에 표시하고 1분 간격으로 재시도합니다.
+- ICS 내보내기로 계정 연결 없이 캘린더 파일을 받을 수도 있습니다.
 
-Slack은 Incoming Webhook을 생성하여 `SLACK_WEBHOOK_URL`에 등록합니다. 재시작 후 테스트 메시지를 보내고 할 일에서 Slack 알림을 선택하세요. 프로그램이 트레이에서 실행 중이면 예약 전송도 처리합니다.
+## 데이터 보관과 범위
 
-프로그램은 사용자 데이터 폴더의 세 연동 항목만 읽습니다. 개발 웹 서버의 `.env` 및 `data/`와 별개이며 기존 웹 데이터를 자동 이동하거나 덮어쓰지 않습니다. 토큰/키는 로컬에 저장하며 별도 디스크 암호화는 하지 않습니다. 공개 배포 전에는 Google 동의 화면 검증, 배포용 데스크톱 OAuth 및 암호화된 토큰 보관 방식을 별도로 준비해야 합니다.
+Windows 기본 사용자 데이터 위치는 `%APPDATA%/jytodo`입니다. 프로그램에서 폴더를 열 수 있습니다. `jytodo.sqlite`와 WAL 파일은 기존 로컬 데이터, 계정별 캐시·대기 변경, PC별 Google 토큰을 저장합니다. `integration.env`는 외부 서비스 설정입니다.
 
-DB 백업은 프로그램을 완전히 종료한 뒤 사용자 데이터 폴더 전체를 복사하세요. 설치 제거 시 데이터는 기본 유지합니다. 로그인·여러 PC 간 자동 동기화·모바일 앱·자동 업데이트는 아직 포함하지 않습니다.
+로컬 캐시와 설정 파일은 별도 디스크 암호화를 하지 않습니다. 프로그램 로그인과 서버 RLS는 앱/서버 접근을 제어하며, 같은 OS 사용자 권한으로 DB 파일 자체를 읽는 것을 암호화로 막지는 않습니다. 백업은 프로그램을 완전히 종료한 뒤 사용자 데이터 폴더 전체를 복사하세요. 프로젝트 URL·공개 키 외의 비밀 값과 DB 파일을 GitHub에 올리지 마세요.
 
-## 데스크톱 개발·패키징
+현재는 Windows 우선 개발 버전입니다. 모바일 앱, 자동 업데이트, 앱 내 비밀번호 복구, 서버에서 독립 실행하는 예약 알림 서비스는 포함하지 않습니다. 계정 메일 발송에는 Supabase의 발송 정책/한도가 적용되며, 외부 사용자에게 배포할 때는 SMTP 설정이 필요할 수 있습니다.
 
-Node.js 24 이상에서 저장소 폴더로 이동합니다.
+## 개발·배포
+
+Node.js 24 이상을 사용합니다.
 
 ```sh
 npm ci
@@ -59,116 +99,40 @@ npm run setup:electron
 npm run desktop
 ```
 
-`desktop`은 화면을 빌드하고 프로그램을 실행합니다. Windows 단일 실행 파일과 ZIP 생성:
+Windows 실행 파일과 ZIP은 `npm run package:win`으로 생성합니다. 실제 Windows 머신에서 `npm run package:installer:win`을 사용하면 설치형을 만들 수 있습니다. 현재 Linux 환경의 Wine 호환 오류로 설치형 생성은 검증하지 않았습니다. Linux 테스트용 폴더는 `npm run package:linux`입니다.
 
-```sh
-npm run package:win
-```
-
-Linux 테스트용 실행 폴더는 `npm run package:linux`로 만듭니다. macOS 배포는 준비하지 않았습니다. 이 클라우드에서는 쓰기 가능한 캐시를 사용합니다.
+클라우드 개발 환경에서는 쓰기 가능한 캐시를 사용합니다.
 
 ```sh
 npm ci --cache /workspace/.cache/npm
 XDG_CACHE_HOME=/workspace/.cache electron_config_cache=/workspace/.cache/electron npm run setup:electron
-DISPLAY=:99 XDG_CACHE_HOME=/workspace/.cache ELECTRON_CACHE=/workspace/.cache/electron ELECTRON_BUILDER_CACHE=/workspace/.cache/electron-builder npm run package:win
+XDG_CACHE_HOME=/workspace/.cache ELECTRON_CACHE=/workspace/.cache/electron ELECTRON_BUILDER_CACHE=/workspace/.cache/electron-builder npm run package:win
 ```
 
-Electron과 패키징 도구는 공식 배포처에서 체크섬/TLS 검증을 유지하여 받습니다. Linux 격리 테스트의 `--no-sandbox`는 Windows 제품 실행에는 추가하지 않습니다.
-
-## 데스크톱 검증
-
-```sh
-npm test
-npm run build
-npm run test:desktop
-```
-
-API·DB·연동·메인 프로세스 스케줄러 테스트 13개를 제공합니다. 데스크톱 통합 테스트는 별도 임시 사용자 폴더에서 전용 창, renderer의 Node 접근 차단, 로컬 API 인증, X로 트레이 숨김, 예약 시간에 창 복원, 다시 알림, 설정 화면 및 재시작 후 데이터 보존을 확인합니다. 실제 외부 채널에 메시지를 보내지 않습니다.
-
-Linux CI에서는 X 디스플레이가 필요합니다. 이 클라우드에는 `/workspace/.tools/xvfb/usr/bin/Xvfb`를 준비했습니다. 가상 디스플레이를 시작한 뒤 `DISPLAY=:99 npm run test:desktop`을 실행하세요. 패키징된 Linux 바이너리는 `JYTODO_DESKTOP_EXECUTABLE=/절대경로/jytodo DISPLAY=:99 npm run test:desktop`으로 검증할 수 있습니다. 결과 화면은 `test-results/desktop-native.png`에 저장됩니다.
-
-실제 Windows 설치/시작 프로그램 등록/OS 알림, Google 계정 연결, Slack 수신은 해당 PC와 계정에서 별도로 확인해야 합니다.
-
-## 데스크톱 구조
-
-`desktop/`는 Electron 생명주기·트레이·메인 프로세스 알림·제한된 preload, `src/`는 화면, `server/`는 저장/API/연동입니다. 화면은 Node 접근 없이 sandbox와 context isolation으로 실행합니다. 내부 API는 127.0.0.1:43127에만 바인딩하며 매 실행 시 임의 토큰을 요구합니다. 이 토큰은 renderer나 외부 HTTPS 서비스에 전달하지 않습니다. 기본 브라우저에서 사용하는 Google 인증 시작/콜백만 예외로 둡니다. Electron 네트워크 스택으로 OS 프록시·인증서 설정을 사용합니다.
-
-포트가 점유되어 있으면 오류를 표시하고 종료합니다. 개발 테스트용 `JYTODO_DESKTOP_PORT`를 바꾸면 Google 리디렉션 주소도 일치시켜야 합니다. 기본 제품 실행은 `npm run desktop`이며, 아래 브라우저 모드는 UI 개발 참고용입니다.
-
----
-
-## 브라우저 개발 모드 참고
-
-날짜·시간별 할 일과 예약 알림을 관리하는 한국어 웹앱입니다. PC와 모바일 브라우저에서 사용하고, 지원 브라우저에서는 홈 화면에 설치할 수 있습니다.
-
-## 실행
-
-Node.js 24 이상을 사용합니다. 별도 DB 서비스는 필요하지 않습니다.
-
-```sh
-cd /workspace/JYTODO
-npm ci --cache /workspace/.cache/npm
-cp .env.example .env # 최초 설정 시에만 실행; 기존 파일은 유지
-npm run dev
-```
-
-기본 포트는 3000입니다. 개발 서버는 Express + Vite로 동작합니다. 배포용 빌드는 `npm run build`, 실행은 `npm start`입니다. 서버를 종료한 뒤 실행 모드를 바꾸세요. `PORT`를 바꾸면 `APP_URL`과 Google 리디렉션 주소도 일치시켜야 합니다.
-
-브라우저 개발 모드는 **개인용 로컬 서버**입니다. 서버는 127.0.0.1에만 바인딩합니다. 공개 인터넷으로 노출하려면 로그인·사용자별 데이터 분리·HTTPS·운영 배포 구성이 추가로 필요합니다. 여러 기기 사이 자동 동기화는 제공하지 않습니다. 데스크톱 실행은 위 Windows 프로그램 안내를 참고하세요.
-
-## 기능
-
-- 할 일 추가·수정·삭제·완료/완료 취소, 메모, 분류, 중요도
-- 날짜와 시간순 목록, 주간 날짜 선택, 월간 캘린더, 전체/예정/완료 보기, 검색·분류·중요도 필터
-- 정시 또는 5/10/30/60분 전 예약 알림, 앱 내 팝업, 10분 뒤 다시 알림
-- 브라우저 알림 권한을 허용하면 시스템 알림도 제공
-- 로컬 SQLite 영구 저장 (`data/jytodo.sqlite`), 재시작 시 데이터·미확인 알림 유지
-- Google 기본 캘린더로 일정 전송 및 수정·완료·삭제 반영
-- Slack Incoming Webhook을 통한 예약 알림 (할 일별 선택)
-- 계정 없이 ICS 파일 내보내기
-
-### 알림 동작 범위
-
-앱 내 팝업/시스템 알림은 **서버가 실행 중이고 앱 페이지가 열려 있을 때** 약 3초 간격으로 확인합니다. 브라우저의 절전/백그라운드 제한으로 지연될 수 있습니다. 페이지를 다시 열면 아직 확인하지 않은 지난 알림도 표시합니다. 앱 종료 중의 OS 팝업이나 정확한 초 단위 전달은 보장하지 않습니다. 닫힌 앱에 알림을 보내려면 향후 Web Push 또는 네이티브 백그라운드 실행 기능이 필요합니다. 설치용 서비스 워커는 백그라운드 알람 엔진이 아닙니다.
-
-Slack 알림은 브라우저가 닫혀 있어도 **서버가 실행 중이면** 약 5초마다 처리합니다. 서버 중단 중 지난 예약은 재시작 후 전송합니다. 실패는 해당 할 일에 표시하고 1분 간격으로 재시도합니다. 외부 전송 후 응답이 유실되거나 서버가 종료되면 중복 전송 가능성이 있습니다.
-
-날짜는 사용한 기기의 시간대로 입력하고 UTC로 저장합니다. Slack과 Google에는 저장된 기기 시간대를 함께 사용합니다. 다른 시간대 기기에서 열면 목록은 그 기기의 현지 시간으로 표시합니다.
-
-## Google 캘린더 연결
-
-1. Google Cloud 프로젝트에서 **Google Calendar API**를 활성화합니다.
-2. OAuth 동의 화면을 설정합니다. 테스트 모드라면 사용할 Google 계정을 테스트 사용자로 추가합니다.
-3. **웹 애플리케이션** OAuth 클라이언트를 만들고 승인된 리디렉션 URI에 `http://localhost:3000/api/google/callback`을 등록합니다.
-4. 서버 `.env`에 `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`을 설정합니다. `APP_URL=http://localhost:3000`을 유지합니다. 비밀 값은 커밋하거나 채팅에 공유하지 마세요.
-5. 서버를 재시작하고 앱의 **앱 연동 및 설정 → Google 계정 연결**을 누릅니다.
-6. 할 일에서 **Google 캘린더로 보내기**를 선택합니다.
-
-선택한 할 일은 기본 캘린더에 30분 일정으로 전송됩니다. 수정은 전송한 이벤트에만 반영합니다. 완료/삭제/연동 체크 해제는 해당 이벤트를 삭제합니다. 완료 취소는 새로 생성합니다. Google에서 직접 한 변경은 앱으로 가져오지 않는 **단방향 연동**입니다. 전송 실패 시 할 일은 보존되고 오류와 다시 전송 버튼이 표시됩니다. 연결 해제는 로컬 토큰을 지우며 기존 원격 일정을 일괄 삭제하거나 Google의 앱 권한 자체를 철회하지 않습니다. Google 계정 설정에서 앱 권한을 철회할 수 있습니다.
-
-OAuth는 state·PKCE를 사용합니다. 토큰은 브라우저로 보내지 않고 로컬 DB에 보관합니다. DB는 접근 권한 0600으로 생성되지만 디스크 암호화는 하지 않으므로 운영 시 비밀 저장소/암호화 및 접근 통제가 필요합니다. Google 테스트 모드의 refresh token은 만료될 수 있어 재연결이 필요할 수 있습니다.
-
-## Slack 연결
-
-1. Slack 앱에서 **Incoming Webhooks**를 켜고 알림을 받을 채널의 Webhook URL을 발급합니다.
-2. 서버 `.env`에 `SLACK_WEBHOOK_URL`을 설정한 뒤 서버를 재시작합니다.
-3. **앱 연동 및 설정 → 테스트 메시지 보내기**로 채널 도착을 확인합니다.
-4. 할 일에서 알림을 켜고 **Slack으로 알림 받기**를 선택합니다.
-
-Webhook 주소는 서버에서만 사용합니다. 임의 URL 대신 `https://hooks.slack.com/services/...`만 허용합니다. 실제 메시지 전송은 명시적인 테스트 버튼 또는 Slack 알림을 선택한 예약 작업에서만 발생합니다.
-
-연동에 필요한 서버 네트워크 목적지: `accounts.google.com`, `oauth2.googleapis.com`, `www.googleapis.com`, `hooks.slack.com` (HTTPS). 브라우저는 Google 로그인 페이지에 접근할 수 있어야 합니다.
+이 격리된 Linux 환경에서 GUI가 없으면 준비된 `/workspace/.tools/xvfb/usr/bin/Xvfb`로 가상 디스플레이를 시작합니다. Linux 테스트의 `--no-sandbox`를 Windows 제품 실행에 추가하지 않습니다. `npm run dev`는 UI 개발용 브라우저 모드이며 기본 포트는 3000입니다. `CLOUD_REQUIRED=0`은 프로젝트 미설정 상태에서 기존 로컬 기능을 검증하는 개발 테스트용 옵션입니다.
 
 ## 검증
 
 ```sh
 npm test
+npm run test:rls
 npm run build
+npm run test:accounts:ui
+npm run test:desktop
 npm run test:ui
 ```
 
-API 테스트는 격리된 메모리 DB와 가짜 외부 서비스 응답을 사용합니다. UI 검증은 별도 임시 DB와 3101 포트에서 Chromium을 실행하므로 일반 데이터나 실제 연동 채널을 건드리지 않습니다. 시스템 Chromium이 없으면 `npx playwright install chromium`으로 설치하거나 `CHROMIUM_PATH`로 실행 파일 경로를 지정하세요. 실제 Google OAuth 및 Slack 수신 확인은 계정 설정 후 별도로 진행해야 합니다.
+- 단위/API 테스트: 인증·계정 분리·두 PC 변경/삭제·오프라인 보관·충돌·동시 수정·기존 데이터·기존 알림/연동
+- `test:rls`: Docker의 실제 PostgreSQL에서 익명 차단, 사용자 간 읽기/쓰기 차단, RPC 권한·버전 충돌·삭제 표시·반복 SQL 실행 검증. 네트워크/호스트 포트를 열지 않는 임시 컨테이너를 정리합니다.
+- `test:accounts:ui`: 격리된 두 PC 서버와 가짜 Supabase로 로그인·계정 전환·동기화·충돌 해결 화면 검증
+- `test:desktop`: 임시 데이터 폴더에서 Electron 실행, Node 접근 차단, 트레이·예약 팝업·다시 알림·재시작 보존·프로젝트 설정·로그인 잠금 검증
 
-## 데이터와 개발
+브라우저 검증은 `CHROMIUM_PATH` 또는 시스템 Chromium을 사용하고, 없으면 `npx playwright install chromium`으로 설치한 브라우저를 사용합니다. Linux 네이티브 검증은 `DISPLAY=:99 npm run test:desktop`으로 실행합니다. 결과 화면은 `test-results/`에 저장합니다. 실제 Supabase 관리 프로젝트 생성·사용자 이메일 수신·호스팅된 Auth/DB 연결은 소유자 설정 후 별도 확인해야 합니다.
 
-React/Vite 클라이언트, Express API, Node 내장 SQLite를 사용합니다. `src/`는 화면, `server/`는 저장소/API/연동 구현, `test/`는 자동 검증입니다. `.env`, `data/`, `node_modules/`, `dist/`, 테스트 결과는 Git에서 제외됩니다. DB 백업은 서버를 종료한 후 `data/` 전체를 복사하세요. 클라우드 작업 간 사용자 데이터 보존은 해당 환경의 스냅샷·영구 저장 정책에 따라 달라집니다.
+`v*` 태그를 올리면 GitHub Actions가 실제 DB 정책과 계정 화면, Windows 네이티브 앱을 검사한 뒤 릴리스에 파일을 게시합니다. 별도 개인 GitHub 토큰 없이 작업의 기본 토큰을 사용합니다.
+
+## 구조
+
+`desktop/`: 전용 창·트레이·메인 프로세스 알림·제한된 preload. `src/`: 화면과 로그인. `server/`: 로컬 API·SQLite·인증·동기화·외부 연동. `supabase/schema.sql`: 계정별 RLS와 낙관적 동시성 RPC.
+
+화면은 Node 접근 없이 sandbox/context isolation으로 실행합니다. 내부 API는 `127.0.0.1:43127`에만 바인딩하고 실행별 임의 토큰을 요구하며, 로그인 전에는 데이터 API도 차단합니다. 사용자 인증 토큰은 renderer로 보내지 않습니다. Google 인증 시작/콜백과 이메일 확인 안내 페이지는 기본 브라우저를 위한 경로입니다. 포트 점유 시 오류로 종료합니다.

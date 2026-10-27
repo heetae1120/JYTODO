@@ -10,13 +10,14 @@ const errors=[];
 const options={
   ...(process.env.JYTODO_DESKTOP_EXECUTABLE ? {executablePath:process.env.JYTODO_DESKTOP_EXECUTABLE} : {}),
   args:[...(!process.env.JYTODO_DESKTOP_EXECUTABLE ? ['.'] : []), ...(process.platform==='linux'?['--no-sandbox','--disable-gpu']:[])],
-  env:{...process.env,XDG_CACHE_HOME:join(directory,'cache'),XDG_CONFIG_HOME:join(directory,'config'),JYTODO_DESKTOP_DATA:join(directory,'data'),JYTODO_DESKTOP_PORT:port,SLACK_WEBHOOK_URL:'',GOOGLE_CLIENT_ID:'',GOOGLE_CLIENT_SECRET:''},
+  env:{...process.env,CLOUD_REQUIRED:'0',XDG_CACHE_HOME:join(directory,'cache'),XDG_CONFIG_HOME:join(directory,'config'),JYTODO_DESKTOP_DATA:join(directory,'data'),JYTODO_DESKTOP_PORT:port,SLACK_WEBHOOK_URL:'',GOOGLE_CLIENT_ID:'',GOOGLE_CLIENT_SECRET:''},
   timeout:20000,
 };
 let desktop;
 async function launch() {
   desktop=await electron.launch(options);
-  const page=await desktop.firstWindow();
+  let diagnostics='';desktop.process().stderr.on('data',data=>diagnostics+=data);
+  let page;try{page=await desktop.firstWindow();}catch(error){console.error(diagnostics);throw error;}
   page.on('pageerror',error=>errors.push(error.message));
   await page.getByRole('heading',{name:'오늘의 할 일.',exact:true}).waitFor();
   return page;
@@ -53,8 +54,23 @@ try {
   const restored=await page.evaluate(()=>fetch('/api/tasks').then(r=>r.json()));
   assert.equal(restored.length,1);assert.equal(restored[0].title,'창을 닫아도 알림');
   assert.equal(restored[0].reminderAt,tasks[0].reminderAt);
+  await desktop.close();desktop=null;
+  options.env.CLOUD_REQUIRED='1';
+  desktop=await electron.launch(options);page=await desktop.firstWindow();
+  await page.locator('.login-page').waitFor();
+  if(!await page.getByLabel('프로젝트 URL',{exact:true}).count())await page.getByRole('button',{name:'동기화 공간 설정',exact:true}).click();
+  await page.getByLabel('프로젝트 URL',{exact:true}).fill('https://test-project.supabase.co');
+  await page.getByLabel('Publishable / anon 공개 키',{exact:true}).fill('sb_publishable_example_only_not_a_real_key');
+  await page.getByRole('button',{name:'동기화 공간 연결',exact:true}).click();
+  await page.getByLabel('아이디 (이메일)',{exact:true}).waitFor();
+  assert.equal(await page.evaluate(()=>fetch('/api/tasks').then(r=>r.status)),401);
+  await desktop.close();desktop=null;
+  desktop=await electron.launch(options);page=await desktop.firstWindow();
+  await page.getByLabel('아이디 (이메일)',{exact:true}).waitFor();
+  assert.equal(await page.getByLabel('아이디 (이메일)',{exact:true}).inputValue(),'');
+  assert.equal(await page.evaluate(()=>fetch('/api/tasks').then(r=>r.status)),401);
   assert.deepEqual(errors,[]);
-  console.log('PASS: native desktop launch, isolated renderer, authenticated local API, close-to-tray, main-process reminder restores window, snooze, settings and persistence across restart.');
+  console.log('PASS: native launch, renderer isolation, close-to-tray, reminder restoration, snooze, data persistence, cloud setup, login gate and locked data after restart.');
 } finally {
   await desktop?.close();
   await rm(directory,{recursive:true,force:true});

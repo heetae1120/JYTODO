@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { spawn } from 'node:child_process';
 import { mkdtemp, mkdir, rm } from 'node:fs/promises';
@@ -6,7 +7,7 @@ import { join } from 'node:path';
 import assert from 'node:assert/strict';
 
 const temp = await mkdtemp(join(tmpdir(), 'jytodo-ui-'));
-const server = spawn(process.execPath, ['server/index.js', '--production'], { env: { ...process.env, PORT: '3101', APP_URL: 'http://localhost:3101', DB_PATH: join(temp,'test.sqlite'), SLACK_WEBHOOK_URL:'', GOOGLE_CLIENT_ID:'', GOOGLE_CLIENT_SECRET:'' }, stdio: ['ignore','pipe','pipe'] });
+const server = spawn(process.execPath, ['server/index.js', '--production'], { env: { ...process.env, CLOUD_REQUIRED:'0', PORT: '3101', APP_URL: 'http://localhost:3101', DB_PATH: join(temp,'test.sqlite'), SLACK_WEBHOOK_URL:'', GOOGLE_CLIENT_ID:'', GOOGLE_CLIENT_SECRET:'' }, stdio: ['ignore','pipe','pipe'] });
 let logs = ''; server.stdout.on('data',data=>logs+=data); server.stderr.on('data',data=>logs+=data);
 let browser;
 try {
@@ -17,7 +18,7 @@ try {
     await new Promise(resolve=>setTimeout(resolve,100));
   }
   assert.ok(ready, logs);
-  browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH || '/usr/bin/chromium',headless:true,args:['--no-sandbox']});
+  browser=await chromium.launch({...(process.env.CHROMIUM_PATH?{executablePath:process.env.CHROMIUM_PATH}:existsSync('/usr/bin/chromium')?{executablePath:'/usr/bin/chromium'}:{}),headless:true,args:['--no-sandbox']});
   const context=await browser.newContext({viewport:{width:1440,height:1050},timezoneId:'Asia/Seoul',permissions:['notifications']});
   const page=await context.newPage(); const errors=[];
   page.on('pageerror',error=>errors.push(error.message));
