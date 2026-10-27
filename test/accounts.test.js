@@ -21,6 +21,36 @@ test('cloud-required startup locks legacy tasks until project setup and login',(
   const account=new Accounts(root,{CLOUD_REQUIRED:true});assert.equal(account.store,null);assert.equal(account.status().required,true);assert.equal(root.all().length,1);root.close();
 });
 
+test('unconfirmed-email errors give an explicit instruction without exposing upstream details',async()=>{
+  const root=new Store(':memory:');
+  const account=new Accounts(root,project,async()=>Response.json({error_code:'email_not_confirmed',msg:'private-upstream-detail',access_token:'never-expose-token'},{status:400}));
+  try{
+    await assert.rejects(account.signIn(login('alice')),error=>error.code==='email_not_confirmed'&&error.message.includes('이메일 인증')&&!error.message.includes('private-upstream')&&!error.message.includes('never-expose'));
+    assert.equal(account.session,null);assert.equal(account.store,null);
+  }finally{root.close();}
+});
+
+test('confirmation resend needs only a valid email and never grants a session',async()=>{
+  const service=fakeSupabase(),a=computer(service);
+  try{
+    const result=await a.account.resendConfirmation({email:'alice@example.test'});assert.match(result.message,/스팸함/);assert.equal(service.resends,1);assert.equal(a.account.session,null);
+    await assert.rejects(a.account.resendConfirmation({email:'invalid'}),/이메일/);assert.equal(service.resends,1);
+    a.account.request=async()=>Response.json({error_code:'over_email_send_rate_limit',msg:'sensitive provider response'},{status:429});
+    await assert.rejects(a.account.resendConfirmation({email:'alice@example.test'}),error=>error.status===429&&error.code==='over_email_send_rate_limit'&&error.message.includes('발송 한도')&&!error.message.includes('sensitive'));
+  }finally{a.root.close();}
+});
+
+test('authentication API preserves safe error codes and provides passwordless confirmation resend',async()=>{
+  const root=new Store(':memory:'),service=fakeSupabase();service.unconfirmed=true;
+  const runtime=createApp(root,project,service.fetch),server=runtime.app.listen(0,'127.0.0.1');await new Promise(resolve=>server.once('listening',resolve));
+  const url=`http://127.0.0.1:${server.address().port}/api/auth`;
+  try{
+    const response=await fetch(url+'/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(login('alice'))});const error=await response.json();
+    assert.equal(response.status,400);assert.equal(error.code,'email_not_confirmed');assert.match(error.error,/확인 메일/);assert.equal(runtime.accounts.session,null);
+    const resend=await fetch(url+'/resend',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:'alice@example.test'})});assert.equal(resend.status,200);assert.equal(service.resends,1);assert.equal(runtime.accounts.session,null);
+  }finally{await new Promise(resolve=>server.close(resolve));root.close();}
+});
+
 test('a second computer loads the same account; edits and deletions propagate',async()=>{
   const service=fakeSupabase(),a=computer(service),b=computer(service);
   try{

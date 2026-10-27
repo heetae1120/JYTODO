@@ -36,6 +36,14 @@ try{
   await mkdir('test-results',{recursive:true});await page.screenshot({path:'test-results/login.png',fullPage:true});
   await page.getByRole('button',{name:'회원가입',exact:true}).click();await page.getByLabel('아이디 (이메일)',{exact:true}).fill('alice@example.test');await page.getByLabel('비밀번호',{exact:true}).fill('test-password');await page.getByRole('button',{name:'회원가입',exact:true}).click();await page.getByRole('status').waitFor();
   await page.getByLabel('비밀번호',{exact:true}).fill('wrong-password');await page.getByRole('button',{name:'로그인',exact:true}).click();await page.getByRole('alert').waitFor();
+  service.unconfirmed=true;
+  await page.getByLabel('비밀번호',{exact:true}).fill('test-password');await page.getByRole('button',{name:'로그인',exact:true}).click();
+  await page.getByText('이메일 인증이 아직 완료되지 않았습니다. 가입할 때 받은 확인 메일의 링크를 누른 뒤 다시 로그인해 주세요.',{exact:true}).waitFor();
+  const resend=page.getByRole('button',{name:'인증 메일 다시 받기',exact:true});await resend.waitFor();await resend.click();
+  await page.getByRole('status').waitFor();assert.equal(service.resends,1);assert.equal(a.runtime.accounts.session,null);
+  await page.waitForFunction(()=>[...document.querySelectorAll('button')].some(button=>button.disabled&&button.textContent.includes('초 후 재발송')));
+  await page.screenshot({path:'test-results/email-confirmation.png',fullPage:true});
+  service.unconfirmed=false;
   await login(page,a,'alice');const task=await mutate(page,'두 PC에서 불러온 할 일');await page.getByLabel('지금 동기화',{exact:true}).click();
   await login(other,b,'alice');await other.getByRole('button',{name:'두 PC에서 불러온 할 일',exact:true}).waitFor();
   await mutate(other,'다른 PC에서 수정한 내역',task.id);await other.getByLabel('지금 동기화',{exact:true}).click();await page.getByLabel('지금 동기화',{exact:true}).click();await page.getByRole('button',{name:'다른 PC에서 수정한 내역',exact:true}).waitFor({timeout:10000});

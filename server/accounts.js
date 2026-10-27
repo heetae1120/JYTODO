@@ -2,7 +2,15 @@ import { createHash } from 'node:crypto';
 import { cloudBody, validateTask, ValidationError } from './store.js';
 const uuid=/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i;
 
-export class AccountError extends Error { constructor(message,status=400){super(message);this.status=status;} }
+export class AccountError extends Error { constructor(message,status=400,code){super(message);this.status=status;this.code=code;} }
+const authMessages={
+  email_not_confirmed:'이메일 인증이 아직 완료되지 않았습니다. 가입할 때 받은 확인 메일의 링크를 누른 뒤 다시 로그인해 주세요.',
+  invalid_credentials:'이메일 또는 비밀번호가 올바르지 않습니다.',
+  over_email_send_rate_limit:'인증 메일 발송 한도에 도달했습니다. 잠시 후 다시 시도하거나 이미 받은 메일을 확인해 주세요.',
+  over_request_rate_limit:'요청이 많습니다. 잠시 후 다시 시도해 주세요.',
+  email_address_not_authorized:'이 주소로 인증 메일을 보낼 수 없습니다. 기본 메일 서비스는 프로젝트 팀의 이메일만 허용할 수 있습니다. 운영자의 메일 발송 설정을 확인해 주세요.',
+  email_address_invalid:'올바른 이메일 주소를 입력해 주세요.',
+};
 export function validateProject(url,key) {
   let parsed;try{parsed=new URL(url);}catch{throw new AccountError('Supabase 프로젝트 URL을 확인해 주세요.');}
   if(parsed.protocol!=='https:'||!/^[-a-z0-9]+\.supabase\.co$/.test(parsed.hostname)||parsed.port||parsed.username||parsed.password||!['','/'].includes(parsed.pathname)||parsed.search||parsed.hash)throw new AccountError('https://프로젝트.supabase.co 형식의 프로젝트 URL이 필요합니다.');
@@ -48,6 +56,11 @@ export class Accounts {
     let response;try{response=await this.request(`${project.url}${path}`,{...options,headers:{apikey:project.key,'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})},signal:AbortSignal.timeout(15000)});}catch{throw new AccountError('동기화 서버에 연결하지 못했습니다. 인터넷 연결을 확인해 주세요.',503);}
     if(!response.ok){
       // Never forward upstream bodies: they can contain tokens, URLs or internal details.
+      if(path.startsWith('/auth/')){
+        let detail;try{detail=await response.json();}catch{}
+        const code=detail?.error_code||detail?.code;
+        if(Object.hasOwn(authMessages,code))throw new AccountError(authMessages[code],response.status===429?429:400,code);
+      }
       if(response.status===401||response.status===403)throw new AccountError('로그인 정보 또는 접근 권한을 확인해 주세요. 이메일 인증이 필요할 수도 있습니다.',401);
       if(response.status===400||response.status===422)throw new AccountError('요청을 처리하지 못했습니다. 이메일·비밀번호와 프로젝트의 인증 설정을 확인해 주세요.');
       if(response.status===429)throw new AccountError('요청이 많습니다. 잠시 후 다시 시도해 주세요.',429);
@@ -60,6 +73,12 @@ export class Accounts {
     const input=credentials(body);await this.json(`/auth/v1/signup?redirect_to=${encodeURIComponent(`${this.origin}/auth/confirmed`)}`,{method:'POST',body:JSON.stringify(input)});
     // Do not infer whether an address is already registered or persist a session.
     return {message:'이메일 인증을 켠 프로젝트에서는 받은 메일을 확인한 뒤 로그인해 주세요. 이미 가입한 계정은 로그인을 이용해 주세요.'};
+  }
+  async resendConfirmation(body){
+    const email=typeof body?.email==='string'?body.email.trim():'';
+    if(email.length>254||!/^\S+@\S+\.\S+$/.test(email))throw new AccountError('인증 메일을 받을 이메일을 입력해 주세요.');
+    await this.json(`/auth/v1/resend?redirect_to=${encodeURIComponent(`${this.origin}/auth/confirmed`)}`,{method:'POST',body:JSON.stringify({type:'signup',email})});
+    return {message:'인증이 필요한 가입 요청이 있는 주소라면 확인 메일이 발송됩니다. 받은편지함과 스팸함을 확인해 주세요.'};
   }
   async signIn(body){
     if(this.session)throw new AccountError('먼저 현재 계정에서 로그아웃해 주세요.',409);

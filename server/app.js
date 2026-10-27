@@ -30,6 +30,7 @@ export function createApp(root,config=process.env,request=fetch){
   app.get('/api/auth/status',(req,res)=>res.json(accounts.status()));
   app.post('/api/auth/configure',route(async(req,res)=>res.json(accounts.configure(req.body?.url,req.body?.key))));
   app.post('/api/auth/signup',route(async(req,res)=>res.json(await accounts.signUp(req.body))));
+  app.post('/api/auth/resend',route(async(req,res)=>res.json(await accounts.resendConfirmation(req.body))));
   app.post('/api/auth/login',route(async(req,res)=>res.json(await accounts.signIn(req.body))));
   app.post('/api/auth/logout',route(async(req,res)=>res.json(await accounts.signOut())));
   app.post('/api/auth/sync',route(async(req,res)=>{
@@ -56,7 +57,7 @@ export function createApp(root,config=process.env,request=fetch){
   app.use((error,req,res,next)=>{
     if(!req.path.startsWith('/api'))return next(error);
     const status=error instanceof AccountError?error.status:error instanceof ValidationError?400:error.type==='entity.parse.failed'?400:error.status===413?413:502;
-    res.status(status).json({error:error instanceof AccountError||error instanceof ValidationError?error.message:'요청을 처리하지 못했습니다. 다시 시도해 주세요.'});
+    res.status(status).json({error:error instanceof AccountError||error instanceof ValidationError?error.message:'요청을 처리하지 못했습니다. 다시 시도해 주세요.',...(error instanceof AccountError&&error.code?{code:error.code}:{})});
   });
   return {app,accounts,integrations:core.integrations,get store(){return accounts.store;},async background(){
     await accounts.sync();const selected=accounts.store;if(!selected)return;
