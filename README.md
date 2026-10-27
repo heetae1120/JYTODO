@@ -6,8 +6,8 @@ Windows PC에서 이메일·비밀번호로 로그인하고, 같은 계정의 �
 
 [GitHub 최신 릴리스](https://github.com/heetae1120/JYTODO/releases/latest)의 Assets에서 받으세요.
 
-- `JYTODO-Portable-0.3.0-x64.exe`: 설치 없이 실행하는 Windows 64비트 단일 파일
-- `JYTODO-0.3.0-Windows-x64.zip`: 전체 압축을 푼 뒤 `JYTODO.exe` 실행. EXE만 따로 옮기면 실행되지 않습니다.
+- `JYTODO-Portable-0.3.1-x64.exe`: 설치 없이 실행하는 Windows 64비트 단일 파일
+- `JYTODO-0.3.1-Windows-x64.zip`: 전체 압축을 푼 뒤 `JYTODO.exe` 실행. EXE만 따로 옮기면 실행되지 않습니다.
 - `SHA256SUMS`: 파일 무결성 확인용
 
 업데이트 전에는 기존 프로그램을 **트레이에서 완전히 종료**하세요. 현재 실행 파일은 코드 서명 전 개발 버전입니다. 자동 실행을 설정했다면 실행 파일을 같은 위치에 유지하세요.
