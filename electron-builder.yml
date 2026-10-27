@@ -1,0 +1,37 @@
+appId: com.jytodo.desktop
+productName: JYTODO
+asar: true
+npmRebuild: false
+directories:
+  output: release
+files:
+  - dist/**/*
+  - desktop/**/*
+  - server/**/*
+  - package.json
+win:
+  target:
+    - target: portable
+      arch: [x64]
+    - target: zip
+      arch: [x64]
+  icon: desktop/icon.ico
+  # Keep the product icon/metadata; signing credentials are not configured.
+  signExecutable: false
+artifactName: JYTODO-${version}-Windows-${arch}.${ext}
+portable:
+  artifactName: JYTODO-Portable-${version}-x64.${ext}
+nsis:
+  installerIcon: desktop/icon.ico
+  uninstallerIcon: desktop/icon.ico
+  artifactName: JYTODO-Setup-${version}-x64.${ext}
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: JYTODO
+  deleteAppDataOnUninstall: false
+linux:
+  target: dir
+  category: Office

@@ -1,0 +1,84 @@
+name: Build Windows download
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: windows-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Prepare Electron
+        run: npm run setup:electron
+      - name: Test API, storage and scheduling
+        run: npm test
+      - name: Build interface
+        run: npm run build
+      - name: Test native Windows application
+        run: npm run test:desktop
+      - name: Build Windows executable and ZIP
+        run: npm run package:win
+      - name: Write download checksums
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem release/JYTODO-Portable-*-x64.exe, release/JYTODO-*-Windows-x64.zip
+          if ($files.Count -ne 2) { throw 'Expected one executable and one ZIP.' }
+          $lines = $files | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($_.Name)"
+          }
+          $lines | Set-Content release/SHA256SUMS -Encoding ascii
+      - name: Retain downloads
+        uses: actions/upload-artifact@v4
+        with:
+          name: JYTODO-Windows-x64
+          path: |
+            release/JYTODO-Portable-*-x64.exe
+            release/JYTODO-*-Windows-x64.zip
+            release/SHA256SUMS
+          if-no-files-found: error
+      - name: Publish tagged release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: pwsh
+        run: |
+          @'
+          Windows 64비트용 JYTODO 개발 버전입니다.
+
+          - JYTODO-Portable-*.exe: 설치 없이 실행하는 단일 파일
+          - JYTODO-*-Windows-x64.zip: 전체 압축을 풀고 JYTODO.exe 실행
+          - SHA256SUMS: 다운로드 파일 무결성 확인용
+
+          창의 X 버튼은 트레이로 숨기고, 예약 시간이 되면 프로그램 창을 다시 띄웁니다. 완전히 종료하거나 PC가 꺼져 있으면 알림이 동작하지 않습니다.
+
+          코드 서명 전 버전입니다. Slack·Google 캘린더는 사용자 계정 설정이 필요합니다. Windows OS 토스트·자동 실행 설정은 PC별 확인이 필요합니다. 자세한 사용법은 저장소 README를 확인하세요.
+          '@ | Set-Content release/notes.md -Encoding utf8
+          gh release view "$env:GITHUB_REF_NAME" --json tagName --jq .tagName
+          if ($LASTEXITCODE -ne 0) {
+            gh release create "$env:GITHUB_REF_NAME" --verify-tag --draft --title "JYTODO $env:GITHUB_REF_NAME · Windows" --notes-file release/notes.md
+            if ($LASTEXITCODE -ne 0) { throw 'Release creation failed.' }
+          }
+          $assets = @(Get-ChildItem release/JYTODO-Portable-*-x64.exe, release/JYTODO-*-Windows-x64.zip | ForEach-Object { $_.FullName })
+          $assets += (Resolve-Path release/SHA256SUMS).Path
+          gh release upload "$env:GITHUB_REF_NAME" @assets --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'Release asset upload failed.' }
+          gh release edit "$env:GITHUB_REF_NAME" --draft=false --latest
+          if ($LASTEXITCODE -ne 0) { throw 'Release publication failed.' }
